@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flow-local"
+version = "0.1.0"
+description = "Offline, private voice dictation for Windows (Arabic + English)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+keywords = ["dictation", "speech-to-text", "whisper", "offline", "arabic", "windows"]
+requires-python = ">=3.11"
+classifiers = [
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+  "Environment :: Win32 (MS Windows)",
+]
+dependencies = [
+  "numpy>=1.26",
+  "sounddevice>=0.4.6",
+  "faster-whisper>=1.0.3",
+  "onnxruntime>=1.17",
+  "PySide6>=6.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/Fable-11/flow-local"
+Issues = "https://github.com/Fable-11/flow-local/issues"
+
+[project.optional-dependencies]
+# NVIDIA GPU acceleration (about 1 GB). Skip it on machines without an NVIDIA graphics card.
+cuda = [
+  "nvidia-cublas-cu12; sys_platform == 'win32'",
+  "nvidia-cudnn-cu12==9.*; sys_platform == 'win32'",
+]
+# Kept so older install commands (`.[stt,ui]`) still work: everything is a normal dependency now.
+stt = []
+ui = []
+dev = ["pytest>=8", "pytest-qt>=4.4", "ruff>=0.5", "pyinstaller>=6"]
+
+[project.scripts]
+flow = "flow.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flow"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: needs models/hardware, deselect with -m 'not slow'",
+  "llm: needs a running Ollama server",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# UI code carries long user-facing strings and Qt signal wiring; wrapping them hurts readability.
+"src/flow/ui/**" = ["E501"]
+"src/flow/app.py" = ["E501"]
+"tests/test_setup_script.py" = ["E501"]
+"tests/test_enhance.py" = ["E501"]  # section rules and signal-processing tables
+"tests/test_theme_ui.py" = ["E501"]  # dense colour-pair tables read better on one line
