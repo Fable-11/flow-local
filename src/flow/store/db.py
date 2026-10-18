@@ -53,6 +53,17 @@ MIGRATIONS: list[str] = [
         updated_at TEXT NOT NULL
     );
     """,
+    # v3: self-learning dictionary (auto-added words, usage recency, rejected words)
+    """
+    ALTER TABLE dictionary ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE dictionary ADD COLUMN last_used TEXT;
+    CREATE TABLE learned (
+        term TEXT PRIMARY KEY COLLATE NOCASE,
+        count INTEGER NOT NULL DEFAULT 0,
+        last_seen TEXT NOT NULL
+    );
+    CREATE TABLE rejected (term TEXT PRIMARY KEY COLLATE NOCASE);
+    """,
 ]
 
 

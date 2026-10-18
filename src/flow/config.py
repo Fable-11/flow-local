@@ -48,6 +48,8 @@ class Settings:
     style: str = "default"
     custom_instructions: str = ""
     spoken_commands: bool = True
+    smart_terms: bool = True  # fix product names such as Claude, ChatGPT, GitHub by context
+    auto_dictionary: bool = True  # learn recurring names and terms into the dictionary
     press_enter: bool = False  # experimental
     whisper_mode: bool = False
     auto_gain: bool = True  # boost quiet recordings (speaking far from the microphone)

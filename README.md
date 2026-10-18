@@ -113,7 +113,9 @@ The Flow Bar at the bottom of the screen shows what is happening: a waveform whi
 
 **Command Mode.** Select text in any app (not in terminals), hold Ctrl+Win+Alt and say what to do: "make this more formal", "translate to Arabic", "turn into bullets", "summarize in one sentence". The selection is replaced. Press **Ctrl+Z** in the app to undo.
 
-**Dictionary.** Add names and jargon ("Kubernetes", "NASA", "faster-whisper"). Starred words get priority. Optionally add a *spoken form* ("cuber nettys") that is replaced by the written word. The dictionary is sent to Whisper as a prompt and to the cleanup model as a glossary. Import and export JSON or CSV. The page also suggests words you say often.
+**Dictionary.** Add names and jargon ("Kubernetes", "NASA", "faster-whisper"). Starred words get priority. Optionally add a *spoken form* ("cuber nettys") that is replaced by the written word. The dictionary is sent to Whisper as a prompt and to the cleanup model as a glossary. Import and export JSON or CSV. The dictionary also learns on its own: a name or term that shows up in three separate dictations is added automatically (shown in grey, delete it and it never returns), recently used words go first, and learned words you stop using fade out after 90 days. Only single words are stored, never your sentences. Turn it off in Settings > Cleanup.
+
+**Product names.** Well-known names are fixed from context, for example "cloud" becomes "Claude" when you say "ask cloud", "cloud code" or mention Anthropic, while "cloud storage" stays as it is. Also ChatGPT, OpenAI, GitHub and VS Code.
 
 **Fix last word.** After a misrecognized word, fix it in the app, select the corrected word, press Ctrl+Win+F. Flow Local offers to add it to the dictionary.
 

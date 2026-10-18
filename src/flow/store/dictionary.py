@@ -7,10 +7,15 @@ import io
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from flow.store.db import Database
+from flow.store.terms import candidate_terms
 
 MAX_LEN = 80
+AUTO_MIN_DICTATIONS = 3  # a term must show up in this many separate dictations to be learned
+AUTO_MAX_ENTRIES = 200
+AUTO_STALE_DAYS = 90  # learned words nobody has used for this long are dropped
 _TRUE = {"1", "true", "yes", "y", "*", "star", "starred"}
 
 
@@ -21,6 +26,12 @@ class DictEntry:
     spoken: str | None
     starred: bool
     uses: int
+    auto: bool = False  # learned automatically rather than typed in by the user
+
+
+def _stamp(when: datetime | None = None) -> str:
+    """Timestamp in the same format SQLite CURRENT_TIMESTAMP uses, so strings compare correctly."""
+    return (when or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _clean(value: str | None) -> str | None:
@@ -35,18 +46,25 @@ class DictionaryStore:
         self._map: dict[str, str] = {}
 
     # -- CRUD ---------------------------------------------------------------------------
-    def add(self, written: str, spoken: str | None = None, starred: bool = False) -> DictEntry:
-        """Insert or update (matching ``written`` case-insensitively)."""
+    def add(
+        self, written: str, spoken: str | None = None, starred: bool = False, auto: bool = False
+    ) -> DictEntry:
+        """Insert or update (matching ``written`` case-insensitively).
+
+        A word added by hand is no longer "auto", and is allowed back after being rejected.
+        """
         w = _clean(written)
         if not w:
             raise ValueError("word must not be empty")
         s = _clean(spoken)
         self.db.execute(
-            "INSERT INTO dictionary (written, spoken, starred) VALUES (?, ?, ?) "
+            "INSERT INTO dictionary (written, spoken, starred, auto) VALUES (?, ?, ?, ?) "
             "ON CONFLICT(written) DO UPDATE SET written = excluded.written, "
-            "spoken = excluded.spoken, starred = excluded.starred",
-            (w, s, int(starred)),
+            "spoken = excluded.spoken, starred = excluded.starred, auto = excluded.auto",
+            (w, s, int(starred), int(auto)),
         )
+        if not auto:
+            self.db.execute("DELETE FROM rejected WHERE term = ?", (w,))
         self._regex = None
         return self.get(w)  # type: ignore[return-value]
 
@@ -55,6 +73,10 @@ class DictionaryStore:
         return self._entry(rows[0]) if rows else None
 
     def delete(self, written: str) -> bool:
+        """Remove a word. A deleted learned word is remembered so it is not learned again."""
+        entry = self.get(written)
+        if entry is not None and entry.auto:
+            self.db.execute("INSERT OR IGNORE INTO rejected (term) VALUES (?)", (entry.written,))
         cur = self.db.execute("DELETE FROM dictionary WHERE written = ?", (written,))
         self._regex = None
         return cur.rowcount > 0
@@ -75,14 +97,17 @@ class DictionaryStore:
 
     @staticmethod
     def _entry(r) -> DictEntry:  # noqa: ANN001
-        return DictEntry(r["id"], r["written"], r["spoken"], bool(r["starred"]), r["uses"])
+        return DictEntry(
+            r["id"], r["written"], r["spoken"], bool(r["starred"]), r["uses"], bool(r["auto"])
+        )
 
     # -- feeding the models -------------------------------------------------------------
     def words_for_prompt(self, limit: int = 60) -> list[str]:
         """Written forms, starred first, then most used. Used for Whisper and the LLM."""
         rows = self.db.query(
             "SELECT written FROM dictionary "
-            "ORDER BY starred DESC, uses DESC, written COLLATE NOCASE LIMIT ?",
+            "ORDER BY starred DESC, uses DESC, IFNULL(last_used, '') DESC, "
+            "written COLLATE NOCASE LIMIT ?",
             (limit,),
         )
         return [r["written"] for r in rows]
@@ -121,8 +146,55 @@ class DictionaryStore:
         return self._regex.sub(sub, text), hits
 
     def record_use(self, words: list[str]) -> None:
+        now = _stamp()
         for w in set(words):
-            self.db.execute("UPDATE dictionary SET uses = uses + 1 WHERE written = ?", (w,))
+            self.db.execute(
+                "UPDATE dictionary SET uses = uses + 1, last_used = ? WHERE written = ?", (now, w)
+            )
+
+    # -- learning -----------------------------------------------------------------------
+    def learn(self, text: str, min_dictations: int = AUTO_MIN_DICTATIONS) -> list[str]:
+        """Count the names and jargon in one finished dictation; add the ones said repeatedly.
+
+        Only single terms and counters are stored, never the sentence. Returns the words that
+        were added to the dictionary by this call.
+        """
+        added: list[str] = []
+        now = _stamp()
+        for term in candidate_terms(text):
+            if self.get(term) is not None or self._is_rejected(term):
+                continue
+            self.db.execute(
+                "INSERT INTO learned (term, count, last_seen) VALUES (?, 1, ?) "
+                "ON CONFLICT(term) DO UPDATE SET count = count + 1, "
+                "last_seen = excluded.last_seen, term = ?",
+                (term, now, term),
+            )
+            row = self.db.query("SELECT count FROM learned WHERE term = ?", (term,))[0]
+            if row["count"] >= min_dictations and self._auto_count() < AUTO_MAX_ENTRIES:
+                self.add(term, auto=True)
+                self.db.execute("DELETE FROM learned WHERE term = ?", (term,))
+                added.append(term)
+        return added
+
+    def _is_rejected(self, term: str) -> bool:
+        return bool(self.db.query("SELECT 1 FROM rejected WHERE term = ?", (term,)))
+
+    def _auto_count(self) -> int:
+        return self.db.query("SELECT COUNT(*) AS n FROM dictionary WHERE auto = 1")[0]["n"]
+
+    def prune_stale(self, days: int = AUTO_STALE_DAYS) -> int:
+        """Drop learned words unused for ``days`` days, and stale one-off sightings."""
+        cutoff = _stamp(datetime.now() - timedelta(days=days))
+        cur = self.db.execute(
+            "DELETE FROM dictionary WHERE auto = 1 AND "
+            "IFNULL(last_used, created_at) < ? AND IFNULL(last_used, created_at) != ''",
+            (cutoff,),
+        )
+        self.db.execute("DELETE FROM learned WHERE last_seen < ?", (cutoff,))
+        if cur.rowcount > 0:
+            self._regex = None
+        return cur.rowcount
 
     # -- import / export ----------------------------------------------------------------
     def export_json(self) -> str:

@@ -156,7 +156,11 @@ class DictionaryPage(QWidget):
             star.setForeground(QBrush(QColor(pal.accent if e.starred else pal.muted)))
             star.setToolTip("Click to toggle priority")
             self.table.setItem(r, 0, star)
-            self.table.setItem(r, 1, QTableWidgetItem(e.written))
+            word = QTableWidgetItem(e.written)
+            if e.auto:
+                word.setToolTip("Learned automatically. Delete it if it is wrong; it will not come back.")
+                word.setForeground(QBrush(QColor(pal.muted)))
+            self.table.setItem(r, 1, word)
             self.table.setItem(r, 2, QTableWidgetItem(e.spoken or ""))
             uses = QTableWidgetItem(str(e.uses))
             uses.setTextAlignment(Qt.AlignmentFlag.AlignCenter)

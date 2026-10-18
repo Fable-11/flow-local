@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from flow.store.db import Database
+from flow.store.terms import WORD as _WORD
+from flow.store.terms import candidate_terms
 
-_WORD = re.compile(r"[\w؀-ۿ][\w؀-ۿ'\-]*", re.UNICODE)
 TYPING_WPM = 40  # baseline used for "time saved"
 
 
@@ -181,21 +181,13 @@ class NotesStore:
 
 
 # -- suggested dictionary words ----------------------------------------------------------------
-_SENT_START = re.compile(r"(?:^|[.!?؟]\s+|\n)\s*$")
-
-
 def suggest_words(
     finals: list[str], known: set[str], min_count: int = 3, limit: int = 12
 ) -> list[tuple[str, int]]:
     """Rare-looking terms (mid-sentence capitals, hyphen/digit/camelCase words) said repeatedly."""
     counts: Counter[str] = Counter()
     for text in finals:
-        for m in _WORD.finditer(text):
-            w = m.group(0).strip("'-")
-            if len(w) < 3 or w.casefold() in known:
-                continue
-            mid_capital = w[0].isupper() and not _SENT_START.search(text[: m.start()])
-            odd = "-" in w or any(c.isdigit() for c in w) or re.search(r"[a-z][A-Z]", w)
-            if mid_capital or odd:
+        for w in candidate_terms(text, unique=False):
+            if w.casefold() not in known:
                 counts[w] += 1
     return [(w, n) for w, n in counts.most_common(limit) if n >= min_count]

@@ -374,6 +374,18 @@ class SettingsPage(QWidget):
         self.commands = self._check(
             panel, "Spoken commands", "spoken_commands", 'Say "new line" or "new paragraph" to format.'
         )
+        self.smart_terms = self._check(
+            panel,
+            "Fix product and brand names",
+            "smart_terms",
+            "Hears Claude, ChatGPT or GitHub from context, for example Claude instead of cloud.",
+        )
+        self.auto_dictionary = self._check(
+            panel,
+            "Learn new words automatically",
+            "auto_dictionary",
+            "Names and terms you say often are added to your dictionary for you.",
+        )
 
     # -- privacy --------------------------------------------------------------------------------
     def _build_privacy(self) -> None:

@@ -153,6 +153,7 @@ class Worker:
         self.llm = OllamaClient(model=s.llm_model)
         self.pipeline = CleanupPipeline(self.llm)
         self.processor = TextProcessor(self.pipeline, self.dictionary, self.snippets)
+        self.dictionary.prune_stale()
         self.recorder = Recorder(device=s.mic_device, keep_open=True, on_level=self.bridge.level.emit)
         self._open_mic()
         self.machine = HotkeyMachine(s.bindings, double_tap=s.double_tap)
@@ -277,6 +278,8 @@ class Worker:
         self.processor.style = s.style
         self.processor.custom_instructions = s.custom_instructions
         self.processor.cleanup_enabled = s.cleanup_enabled
+        self.processor.smart_terms = s.smart_terms
+        self.processor.auto_learn = s.auto_dictionary
         self.processor.app_styles = s.app_styles
         self.pipeline.use_llm = s.llm_enabled
         self.pipeline.rules = RuleOptions(spoken_commands=s.spoken_commands, press_enter=s.press_enter)

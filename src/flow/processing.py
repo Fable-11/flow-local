@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from flow.cleanup.appstyles import resolve_style
 from flow.cleanup.pipeline import CleanResult, CleanupPipeline
 from flow.cleanup.prompts import PromptContext
+from flow.smartterms import fix_terms
 from flow.store.dictionary import DictionaryStore
 from flow.store.snippets import SnippetStore
 from flow.stt.engine import build_initial_prompt
@@ -36,6 +37,8 @@ class TextProcessor:
         self.custom_instructions = custom_instructions
         self.cleanup_enabled = True
         self.app_styles: dict[str, str] = {}
+        self.smart_terms = True
+        self.auto_learn = True
 
     def whisper_prompt(self) -> str | None:
         """Dictionary words as Whisper ``initial_prompt`` (starred words first)."""
@@ -46,9 +49,12 @@ class TextProcessor:
         if snippet:  # inserted verbatim: no cleanup, no replacements
             return ProcessResult(snippet.content, "snippet")
         text, hits = self.dictionary.apply_replacements(raw)
+        if self.smart_terms:
+            text = fix_terms(text)
         if not self.cleanup_enabled:  # insert the transcript as Whisper wrote it
             text, _ = self.snippets.expand_embedded(text.strip())
             self.dictionary.record_use(hits)
+            self._learn(text)
             return ProcessResult(text, "text" if text else "empty")
         ctx = PromptContext(
             style=resolve_style(app_process, self.style, self.app_styles),
@@ -61,9 +67,17 @@ class TextProcessor:
         if not cleaned.text:
             return ProcessResult("", "empty", cleaned)
         out, hits2 = self.dictionary.apply_replacements(cleaned.text)  # LLM may alter casing
+        if self.smart_terms:
+            out = fix_terms(out)
         out, _ = self.snippets.expand_embedded(out)
         self.dictionary.record_use(hits + hits2)
+        self._learn(out)
         press = cleaned.press_enter
         if press:
             out = out.rstrip("\n")
         return ProcessResult(out, "text", cleaned, press)
+
+    def _learn(self, text: str) -> None:
+        """Let the dictionary pick up names and terms that keep coming back."""
+        if self.auto_learn and text:
+            self.dictionary.learn(text)
