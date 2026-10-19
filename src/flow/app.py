@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from flow import memory, sounds
@@ -49,6 +49,7 @@ from flow.store.dictionary import DictionaryStore
 from flow.store.history import HistoryStore
 from flow.store.settings_repo import SettingsRepo
 from flow.store.snippets import SnippetStore
+from flow.store.suggestgate import SuggestionGate
 from flow.stt.engine import ModelNotDownloaded, SttEngine, choose_model
 from flow.stt.models import is_model_cached
 from flow.ui.flowbar import FlowBarGroup
@@ -88,6 +89,7 @@ class Bridge(QObject):
     captured = Signal(str, str)
     historyChanged = Signal()
     fixSuggested = Signal(str, str)
+    wordSuggested = Signal(str)
 
 
 class Worker:
@@ -153,6 +155,7 @@ class Worker:
         self.llm = OllamaClient(model=s.llm_model)
         self.pipeline = CleanupPipeline(self.llm)
         self.processor = TextProcessor(self.pipeline, self.dictionary, self.snippets)
+        self.processor.gate = SuggestionGate(SettingsRepo(self.dictionary.db))
         self.dictionary.prune_stale()
         self.recorder = Recorder(device=s.mic_device, keep_open=True, on_level=self.bridge.level.emit)
         self._open_mic()
@@ -279,7 +282,8 @@ class Worker:
         self.processor.custom_instructions = s.custom_instructions
         self.processor.cleanup_enabled = s.cleanup_enabled
         self.processor.smart_terms = s.smart_terms
-        self.processor.auto_learn = s.auto_dictionary
+        self.processor.arabic_phrases = s.arabic_phrases
+        self.processor.learn_mode = s.learn_mode
         self.processor.app_styles = s.app_styles
         self.pipeline.use_llm = s.llm_enabled
         self.pipeline.rules = RuleOptions(spoken_commands=s.spoken_commands, press_enter=s.press_enter)
@@ -505,6 +509,8 @@ class Worker:
                 lang, text, result.text, result.kind, time.perf_counter() - t0, app.process,
             )
             emit("done", "")
+            if result.suggestion:
+                self.bridge.wordSuggested.emit(result.suggestion)
             self._touch()
             memory.trim_working_set()
         except Exception:  # noqa: BLE001
@@ -546,18 +552,54 @@ class LazyHub:
         memory.trim_working_set()
 
 
-def offer_dictionary_word(ctx: HubContext, heard: str, correct: str) -> None:
-    """Ask whether to add a correction to the dictionary (runs on the UI thread)."""
-    spoken = None if heard.casefold() == correct.casefold() else heard
-    text = f"Add “{correct}” to your dictionary?"
-    if spoken:
-        text += f"\n\nWhen it hears “{spoken}” it will write “{correct}”."
-    box = QMessageBox(QMessageBox.Icon.Question, "Flow Local", text)
-    box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-    box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-    if box.exec() == QMessageBox.StandardButton.Yes:
-        ctx.dictionary.add(correct, spoken)
-        ctx.historyChanged.emit()  # refreshes pages that show dictionary-derived data
+class DictionaryPrompt:
+    """The small "add this word to your dictionary?" prompt on the Flow Bar.
+
+    It lasts 10 seconds. Add saves the word, the cross means "never ask about this word again",
+    and letting it time out just counts as "not now" so prompts become rarer.
+    """
+
+    def __init__(self, ctx: HubContext, bar: FlowBarGroup, gate: SuggestionGate) -> None:
+        self.ctx, self.bar, self.gate = ctx, bar, gate
+        self.pending: tuple[str, str | None, bool] | None = None  # word, spoken, from the gate
+        bar.suggestionAccepted.connect(self._accepted)
+        bar.suggestionDismissed.connect(self._dismissed)
+        bar.suggestionExpired.connect(self._expired)
+
+    def offer(self, word: str, spoken: str | None = None, learned: bool = True) -> None:
+        """Show the prompt shortly after the dictation finished (the check mark goes first)."""
+        QTimer.singleShot(1100, lambda: self._show(word, spoken, learned))
+
+    def _show(self, word: str, spoken: str | None, learned: bool) -> None:
+        text = f"Add \u201c{word}\u201d to your dictionary?"
+        if spoken:
+            text = f"Write \u201c{word}\u201d when you say \u201c{spoken}\u201d?"
+        if self.bar.suggest(text):
+            self.pending = (word, spoken, learned)
+
+    def _take(self) -> tuple[str, str | None, bool] | None:
+        pending, self.pending = self.pending, None
+        return pending
+
+    def _accepted(self) -> None:
+        if pending := self._take():
+            word, spoken, learned = pending
+            self.ctx.dictionary.add(word, spoken)
+            self.ctx.historyChanged.emit()  # refreshes pages that show dictionary data
+            if learned:
+                self.gate.answered(True)
+
+    def _dismissed(self) -> None:
+        if pending := self._take():
+            word, _spoken, learned = pending
+            if learned:
+                self.ctx.dictionary.reject(word)
+                self.gate.answered(False)
+
+    def _expired(self) -> None:
+        if pending := self._take():
+            if pending[2]:
+                self.gate.answered(False)
 
 
 def run_app(background: bool = False) -> int:
@@ -588,7 +630,13 @@ def run_app(background: bool = False) -> int:
     bridge.level.connect(bar.push_level)
     bridge.captured.connect(ctx.chordCaptured)
     bridge.historyChanged.connect(ctx.historyChanged)
-    bridge.fixSuggested.connect(lambda heard, correct: offer_dictionary_word(ctx, heard, correct))
+    prompt = DictionaryPrompt(ctx, bar, SuggestionGate(repo))
+    bridge.fixSuggested.connect(
+        lambda heard, correct: prompt.offer(
+            correct, None if heard.casefold() == correct.casefold() else heard, learned=False
+        )
+    )
+    bridge.wordSuggested.connect(lambda word: prompt.offer(word))
     holder: dict[str, Worker] = {}
 
     def show_status(st: str, text: str) -> None:

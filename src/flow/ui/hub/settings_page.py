@@ -23,6 +23,7 @@ from flow.config import (
     BAR_SCREENS,
     BINDING_LABELS,
     LANGUAGES,
+    LEARN_MODES,
     MEMORY_MODES,
     SOUND_STYLES,
     STT_MODELS,
@@ -40,6 +41,7 @@ from flow.ui.hub.widgets import (
     section_title,
     set_role,
 )
+from flow.ui.screens import PREFIX, screen_key, screen_label
 
 log = logging.getLogger(__name__)
 DEFAULT_MIC = "System default"
@@ -226,15 +228,30 @@ class SettingsPage(QWidget):
             self.language,
         )
 
+    def _fill_bar_screens(self) -> None:
+        """The three general choices, then every connected monitor by name (for example Acme)."""
+        from PySide6.QtGui import QGuiApplication
+
+        combo = self.bar_screens
+        combo.blockSignals(True)
+        combo.clear()
+        for key, label in BAR_SCREENS.items():
+            combo.addItem(label, key)
+        screens = QGuiApplication.screens()
+        primary = QGuiApplication.primaryScreen()
+        for screen in screens:
+            combo.addItem("Only " + screen_label(screen, primary), PREFIX + screen_key(screen))
+        saved = self.ctx.settings.bar_screens
+        if combo.findData(saved) < 0:  # a monitor that is not connected right now: keep the choice
+            combo.addItem(f"Only {saved[len(PREFIX):]} (not connected)", saved)
+        combo.setCurrentIndex(max(0, combo.findData(saved)))
+        combo.blockSignals(False)
+
     # -- display and sound ------------------------------------------------------------------------
     def _build_display_and_sound(self) -> None:
         panel = self._section("Display and sound")
-        self.bar_screens = self._combo_width(QComboBox())
-        for key, label in BAR_SCREENS.items():
-            self.bar_screens.addItem(label, key)
-        self.bar_screens.setCurrentIndex(
-            max(0, self.bar_screens.findData(self.ctx.settings.bar_screens))
-        )
+        self.bar_screens = self._combo_width(QComboBox(), 340)
+        self._fill_bar_screens()
         self.bar_screens.currentIndexChanged.connect(
             lambda _i: self.ctx.update(bar_screens=self.bar_screens.currentData())
         )
@@ -376,15 +393,29 @@ class SettingsPage(QWidget):
         )
         self.smart_terms = self._check(
             panel,
-            "Fix product and brand names",
+            "Fix names and look-alike words",
             "smart_terms",
-            "Hears Claude, ChatGPT or GitHub from context, for example Claude instead of cloud.",
+            "Uses context to write Claude (not cloud), my eye (not my I) and the queue (not the Q).",
         )
-        self.auto_dictionary = self._check(
+        self.arabic_phrases = self._check(
             panel,
-            "Learn new words automatically",
-            "auto_dictionary",
-            "Names and terms you say often are added to your dictionary for you.",
+            "Arabic phrases in Arabic script",
+            "arabic_phrases",
+            "Writes Assalamu alaikum, inshallah and similar phrases in Arabic, even in English text.",
+        )
+        self.learn_mode = self._combo_width(QComboBox(), 300)
+        for key, label in LEARN_MODES.items():
+            self.learn_mode.addItem(label, key)
+        self.learn_mode.setCurrentIndex(
+            max(0, self.learn_mode.findData(self.ctx.settings.learn_mode))
+        )
+        self.learn_mode.currentIndexChanged.connect(
+            lambda _i: self.ctx.update(learn_mode=self.learn_mode.currentData())
+        )
+        panel.add_row(
+            "Learn new words",
+            "Names and terms you say often. Prompts are rare and back off if you ignore them.",
+            self.learn_mode,
         )
 
     # -- privacy --------------------------------------------------------------------------------

@@ -153,13 +153,21 @@ class DictionaryStore:
             )
 
     # -- learning -----------------------------------------------------------------------
-    def learn(self, text: str, min_dictations: int = AUTO_MIN_DICTATIONS) -> list[str]:
-        """Count the names and jargon in one finished dictation; add the ones said repeatedly.
+    def learn(
+        self,
+        text: str,
+        min_dictations: int = AUTO_MIN_DICTATIONS,
+        add: bool = True,
+        report: bool = True,
+    ) -> list[str]:
+        """Count the names and jargon in one finished dictation; act on the ones said repeatedly.
 
-        Only single terms and counters are stored, never the sentence. Returns the words that
-        were added to the dictionary by this call.
+        Only single terms and counters are stored, never the sentence. A term that reached the
+        threshold is added to the dictionary (``add``) or just returned so the caller can ask the
+        user first (its counter restarts, so it is not offered again straight away). With
+        ``report=False`` sightings are counted but nothing is added or returned.
         """
-        added: list[str] = []
+        reached: list[str] = []
         now = _stamp()
         for term in candidate_terms(text):
             if self.get(term) is not None or self._is_rejected(term):
@@ -171,11 +179,20 @@ class DictionaryStore:
                 (term, now, term),
             )
             row = self.db.query("SELECT count FROM learned WHERE term = ?", (term,))[0]
-            if row["count"] >= min_dictations and self._auto_count() < AUTO_MAX_ENTRIES:
+            if not report or row["count"] < min_dictations:
+                continue
+            if add:
+                if self._auto_count() >= AUTO_MAX_ENTRIES:
+                    continue
                 self.add(term, auto=True)
-                self.db.execute("DELETE FROM learned WHERE term = ?", (term,))
-                added.append(term)
-        return added
+            self.db.execute("DELETE FROM learned WHERE term = ?", (term,))
+            reached.append(term)
+        return reached
+
+    def reject(self, term: str) -> None:
+        """Never learn or suggest this term again (until it is added by hand)."""
+        self.db.execute("INSERT OR IGNORE INTO rejected (term) VALUES (?)", (term,))
+        self.db.execute("DELETE FROM learned WHERE term = ?", (term,))
 
     def _is_rejected(self, term: str) -> bool:
         return bool(self.db.query("SELECT 1 FROM rejected WHERE term = ?", (term,)))

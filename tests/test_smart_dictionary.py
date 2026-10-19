@@ -53,6 +53,45 @@ def test_real_cloud_sentences_are_untouched(text):
     assert fix_terms(text).replace("Anthropic", "anthropic") == text
 
 
+@pytest.mark.parametrize(
+    ("heard", "expected"),
+    [
+        ("I can see it with my I", "I can see it with my eye"),
+        ("my I hurts", "my eye hurts"),
+        ("close your Is and rest", "close your eyes and rest"),
+        ("put the I drops in", "put the eye drops in"),
+        ("add it to the Q", "add it to the queue"),
+        ("a message Q holds jobs", "a message queue holds jobs"),
+        ("explain stack and Q", "explain stack and queue"),
+        ("Q and stack are data structures", "Queue and stack are data structures"),
+        ("push it to the job Qs", "push it to the job queues"),
+        ("he is waiting in the cue", "he is waiting in the queue"),
+        ("a stack and cue", "a stack and queue"),
+    ],
+)
+def test_lookalike_words_are_fixed_from_context(heard, expected):
+    assert fix_terms(heard) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I can see it",
+        "I think I know",
+        "between you and I",
+        "press the Q key",
+        "the letter Q is next",
+        "Q and A with the team",
+        "take your cue from me",
+        "the cue ball is white",
+        "Q3 results look good",
+        "the I in team",
+    ],
+)
+def test_lookalike_rules_leave_real_sentences_alone(text):
+    assert fix_terms(text) == text
+
+
 # -- term extraction ----------------------------------------------------------------------------
 def test_candidate_terms_counts_once_per_text_and_skips_sentence_starts():
     text = "Today I used Kubernetes. Kubernetes is great, and so is faster-whisper on Monday"
@@ -142,7 +181,95 @@ def test_processor_fixes_claude_and_learns_it(db):
 def test_processor_switches_off(db):
     p = make_processor(db)
     p.smart_terms = False
-    p.auto_learn = False
+    p.learn_mode = "off"
     for _ in range(4):
         r = p.process("i asked cloud to deploy Kubernetes")
     assert "cloud" in r.text and p.dictionary.list() == []
+
+
+# -- not annoying: modes and the suggestion gate ------------------------------------------------
+from flow.store.settings_repo import SettingsRepo  # noqa: E402
+from flow.store.suggestgate import BASE_COOLDOWN_S, MAX_PER_DAY, SuggestionGate  # noqa: E402
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = 1_000_000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_gate_spaces_prompts_and_limits_them_per_day(db):
+    clock = Clock()
+    gate = SuggestionGate(SettingsRepo(db), clock)
+    assert gate.allow()
+    gate.shown()
+    assert not gate.allow()  # too soon
+    clock.now += BASE_COOLDOWN_S + 1
+    assert gate.allow()
+    shown = 1
+    while gate.allow() and shown < 10:
+        gate.shown()
+        gate.answered(True)
+        clock.now += BASE_COOLDOWN_S + 1
+        shown += 1
+    assert shown == MAX_PER_DAY
+    clock.now += 24 * 3600  # a new day starts fresh
+    assert gate.allow()
+
+
+def test_gate_backs_off_when_prompts_are_ignored_and_recovers_on_yes(db):
+    clock = Clock()
+    gate = SuggestionGate(SettingsRepo(db), clock)
+    gate.shown()
+    gate.answered(False)
+    clock.now += BASE_COOLDOWN_S + 1
+    assert not gate.allow()  # one ignored prompt doubles the pause
+    clock.now += BASE_COOLDOWN_S
+    assert gate.allow()
+    gate.shown()
+    gate.answered(True)
+    clock.now += BASE_COOLDOWN_S + 1
+    assert gate.allow()
+
+
+def _ask_processor(db):
+    p = make_processor(db)
+    p.learn_mode = "ask"
+    p.gate = SuggestionGate(SettingsRepo(db), Clock())
+    return p
+
+
+def test_ask_mode_offers_one_word_then_stays_quiet(db):
+    p = _ask_processor(db)
+    offered = [p.process("we deploy with Kubernetes and Terraform").suggestion for _ in range(4)]
+    assert offered[:2] == [None, None]
+    assert offered[2] == "Kubernetes"  # only one word at a time, nothing added without a yes
+    assert offered[3] is None  # the pause between prompts is respected
+    assert p.dictionary.list() == []
+
+
+def test_ask_mode_keeps_counting_while_paused(db):
+    p = _ask_processor(db)
+    p.gate.shown()  # a prompt was just shown, so the next ones must wait
+    for _ in range(3):
+        assert p.process("we deploy with Kubernetes").suggestion is None
+    assert p.dictionary.list() == []
+    assert p.dictionary._is_rejected("Kubernetes") is False
+
+
+def test_dismissed_word_is_not_offered_again(db):
+    p = _ask_processor(db)
+    p.dictionary.reject("Kubernetes")
+    for _ in range(5):
+        assert p.process("we deploy with Kubernetes").suggestion is None
+
+
+@pytest.mark.parametrize("mode", ["suggest", "off"])
+def test_suggest_only_and_off_modes_never_learn_or_prompt(db, mode):
+    p = make_processor(db)
+    p.learn_mode = mode
+    for _ in range(5):
+        assert p.process("we deploy with Kubernetes").suggestion is None
+    assert p.dictionary.list() == []

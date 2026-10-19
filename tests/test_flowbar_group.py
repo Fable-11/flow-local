@@ -11,8 +11,15 @@ from flow.ui.flowbar import FlowBarGroup  # noqa: E402
 class FakeScreen:
     """A monitor stand-in: only what FlowBar needs to position itself."""
 
-    def __init__(self, x, w=1920, h=1080):
+    def __init__(self, x, w=1920, h=1080, model=""):
         self.rect = QRect(x, 0, w, h - 40)
+        self._model = model
+
+    def model(self):
+        return self._model
+
+    def name(self):
+        return f"\\\\.\\DISPLAY{self.rect.x() // 1920 + 1}"
 
     def availableGeometry(self):  # noqa: N802
         return self.rect
@@ -126,3 +133,35 @@ def test_real_screens_work_without_a_stub(qtbot):
     assert len(g.bars) == len(QGuiApplication.screens()) >= 1
     for b in g.bars:
         qtbot.addWidget(b)
+
+
+def test_primary_mode_shows_only_on_the_main_screen(qtbot, two_screens, monkeypatch):
+    import flow.ui.flowbar as fb
+
+    monkeypatch.setattr(fb, "main_screen", lambda: two_screens[0])
+    monkeypatch.setattr(fb, "screen_under_cursor", lambda: two_screens[1])  # must be ignored
+    g = make_group(two_screens, "primary")
+    g.set_state("recording")
+    first, second = g.bars
+    for b in g.bars:
+        qtbot.addWidget(b)
+    assert first.isVisible() and first.state == "recording" and not second.isVisible()
+    g.set_mode("all")
+    assert first.isVisible() and second.isVisible()
+    g.set_mode("primary")
+    assert first.isVisible() and not second.isVisible()
+
+
+def test_bar_can_be_pinned_to_a_monitor_by_name(qtbot):
+    from flow.ui.screens import screen_key
+
+    screens = [FakeScreen(0, model="Display 24"), FakeScreen(1920, model="Acme G27")]
+    assert screen_key(screens[1]) == "Acme G27"
+    g = make_group(screens, "screen:Acme G27")
+    g.set_state("recording")
+    first, second = g.bars
+    for b in g.bars:
+        qtbot.addWidget(b)
+    assert second.isVisible() and second.state == "recording" and not first.isVisible()
+    g.set_mode("screen:Gone Monitor")  # unplugged: falls back to the main display
+    assert not (first.isVisible() and second.isVisible())

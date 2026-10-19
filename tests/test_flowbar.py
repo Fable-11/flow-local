@@ -90,3 +90,24 @@ def test_bar_sits_at_bottom_center(bar):
     geo = QGuiApplication.primaryScreen().availableGeometry()
     assert abs(bar.geometry().center().x() - geo.center().x()) <= 1
     assert bar.geometry().bottom() <= geo.bottom() + 1
+
+
+def test_suggestion_buttons_and_timeout(qtbot, bar):
+    from PySide6.QtCore import QPointF
+
+    seen = []
+    bar.accepted.connect(lambda: seen.append("add"))
+    bar.dismissed.connect(lambda: seen.append("no"))
+    bar.expired.connect(lambda: seen.append("expired"))
+    bar.set_state("suggest", "Add “Kubernetes” to your dictionary?")
+    QTest.qWait(400)
+    assert bar._add_rect.width() > 0 and bar._close_rect.width() > 0
+    for rect, name in ((bar._add_rect, "add"), (bar._close_rect, "no")):
+        QTest.mouseClick(bar, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
+        assert seen[-1] == name
+    # clicking elsewhere on the pill does nothing
+    n = len(seen)
+    QTest.mouseClick(bar, Qt.MouseButton.LeftButton, pos=QPointF(5, 5).toPoint())
+    assert len(seen) == n
+    bar._timed_out()
+    assert seen[-1] == "expired" and bar.state == "idle"

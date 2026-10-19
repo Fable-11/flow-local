@@ -15,7 +15,17 @@ SOUND_STYLES = {
     "pop": "Short pop",
     "windows": "Windows speech chime (softened)",
 }
-BAR_SCREENS = {"all": "All screens", "active": "Only the screen I am working on"}
+LEARN_MODES = {
+    "auto": "Add them automatically",
+    "ask": "Ask me first (small prompt on the Flow Bar)",
+    "suggest": "Only list suggestions in the app (Dictionary page)",
+    "off": "Do not learn",
+}
+BAR_SCREENS = {
+    "all": "All screens",
+    "primary": "Main screen only",
+    "active": "Only the screen I am working on",
+}
 # name -> (label, minutes before the speech model unloads (0 = never), AI model keep-alive minutes)
 MEMORY_MODES = {
     "fast": ("Fastest (keep models loaded)", 0, 30),
@@ -49,7 +59,8 @@ class Settings:
     custom_instructions: str = ""
     spoken_commands: bool = True
     smart_terms: bool = True  # fix product names such as Claude, ChatGPT, GitHub by context
-    auto_dictionary: bool = True  # learn recurring names and terms into the dictionary
+    arabic_phrases: bool = True  # write "Assalamu alaikum", "inshallah" ... in Arabic script
+    learn_mode: str = "auto"  # LEARN_MODES: add words silently, ask first, or never
     press_enter: bool = False  # experimental
     whisper_mode: bool = False
     auto_gain: bool = True  # boost quiet recordings (speaking far from the microphone)
@@ -64,7 +75,7 @@ class Settings:
     sound_effects: bool = True
     sound_volume: int = 40  # percent
     sound_style: str = "soft"  # key of SOUND_STYLES
-    bar_screens: str = "all"  # "all" monitors or only the "active" one (where the pointer is)
+    bar_screens: str = "all"  # all, primary, active, or "screen:<monitor name>"
     memory_mode: str = "balanced"  # see MEMORY_MODES
     first_run_done: bool = False
 
@@ -101,7 +112,7 @@ def settings_from_dict(data: dict) -> Settings:
     s.sound_volume = max(0, min(100, s.sound_volume))
     if s.sound_style not in SOUND_STYLES:
         s.sound_style = "soft"
-    if s.bar_screens not in BAR_SCREENS:
+    if s.bar_screens not in BAR_SCREENS and not s.bar_screens.startswith("screen:"):
         s.bar_screens = "all"
     if s.memory_mode not in MEMORY_MODES:
         s.memory_mode = "balanced"

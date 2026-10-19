@@ -15,6 +15,18 @@ Flow Local is an independent personal tool. It uses its own name, icons and desi
 
 > **Built with AI.** This project was implemented by **Claude Sonnet 5.5** (Anthropic). Expect rough edges on some hardware setups. Issues and fixes are welcome.
 
+## Versions and going back
+
+Every release has a version number (shown under the logo in the app, and by `python -m flow --version`), an entry in `CHANGELOG.md` and a git tag such as `v0.1.1`. To see what changed, read the changelog. To go back to an earlier version:
+
+```
+git tag                      # list the versions
+git checkout v0.1.1          # run that version (look around, test it)
+git checkout main            # come back to the newest
+```
+
+To make an old version the current one again without losing history, use `git revert` on the changes you do not want. When a new version is ready, bump `version` in `pyproject.toml` and `src/flow/__init__.py`, add a changelog entry (a test checks that the three agree), commit, then `git tag -a vX.Y.Z -m "short note"` and push with `git push --tags`.
+
 ## Privacy
 
 Nothing leaves your computer. The only network use is the **one-time speech model download**, which happens only when you press *Download now* in Settings > Models (or run `transcribe`/`bench` from the command line). Ollama is contacted only on `127.0.0.1`. The app refuses to talk to any other LLM host. Checked while running: no open network connections.
@@ -113,7 +125,9 @@ The Flow Bar at the bottom of the screen shows what is happening: a waveform whi
 
 **Command Mode.** Select text in any app (not in terminals), hold Ctrl+Win+Alt and say what to do: "make this more formal", "translate to Arabic", "turn into bullets", "summarize in one sentence". The selection is replaced. Press **Ctrl+Z** in the app to undo.
 
-**Dictionary.** Add names and jargon ("Kubernetes", "NASA", "faster-whisper"). Starred words get priority. Optionally add a *spoken form* ("cuber nettys") that is replaced by the written word. The dictionary is sent to Whisper as a prompt and to the cleanup model as a glossary. Import and export JSON or CSV. The dictionary also learns on its own: a name or term that shows up in three separate dictations is added automatically (shown in grey, delete it and it never returns), recently used words go first, and learned words you stop using fade out after 90 days. Only single words are stored, never your sentences. Turn it off in Settings > Cleanup.
+**Dictionary.** Add names and jargon ("Kubernetes", "NASA", "faster-whisper"). Starred words get priority. Optionally add a *spoken form* ("cuber nettys") that is replaced by the written word. The dictionary is sent to Whisper as a prompt and to the cleanup model as a glossary. Import and export JSON or CSV. The dictionary also learns on its own: a name or term that shows up in three separate dictations is added automatically (shown in grey, delete it and it never returns), recently used words go first, and learned words you stop using fade out after 90 days. Only single words are stored, never your sentences. In **Settings > Cleanup > Learn new words** you choose how: *add automatically* (default), *ask me first* (a small prompt on the Flow Bar with **Add** and a cross, gone after 10 seconds), *only list suggestions in the app* (nothing appears on the bar; see the Dictionary page), or *do not learn*. The prompt is deliberately rare: at most 3 a day, at least 10 minutes apart, longer pauses each time you ignore one, and a word you dismiss with the cross is never offered again. It only offers a word after it showed up in three separate dictations, so a word you stumble over differently each time is never offered.
+
+**Mixed English and Arabic.** If you pause between an English part and an Arabic part, each part is written in its own script. Well-known phrases like Assalamu alaikum, inshallah and alhamdulillah are written in Arabic even inside an English sentence (switch off in Settings > Cleanup). Changing language in the middle of one unbroken phrase is still left to the speech model.
 
 **Product names.** Well-known names are fixed from context, for example "cloud" becomes "Claude" when you say "ask cloud", "cloud code" or mention Anthropic, while "cloud storage" stays as it is. Also ChatGPT, OpenAI, GitHub and VS Code.
 

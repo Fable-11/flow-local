@@ -86,6 +86,37 @@ def choose_model(preferred: str = "auto") -> ModelChoice:
     return ModelChoice("small" if preferred == "auto" else preferred, "cpu", "int8")
 
 
+MIXED_MIN_AUDIO_S = 3.0  # shorter dictations are one language in practice
+MIXED_MIN_CHUNK_S = 1.0  # language detection is unreliable on anything shorter
+MIXED_PAUSE_MS = 350
+MIXED_MIN_CONFIDENCE = 0.55
+
+
+def merge_short_chunks(stamps: list[dict], min_samples: int) -> list[tuple[int, int]]:
+    """Join speech spans (separated by pauses) so that every chunk is long enough to classify."""
+    chunks: list[list[int]] = []
+    for s in stamps:
+        if chunks and (chunks[-1][1] - chunks[-1][0] < min_samples):
+            chunks[-1][1] = s["end"]
+        else:
+            chunks.append([s["start"], s["end"]])
+    if len(chunks) > 1 and chunks[-1][1] - chunks[-1][0] < min_samples:
+        last = chunks.pop()
+        chunks[-1][1] = last[1]
+    return [(a, b) for a, b in chunks]
+
+
+def split_by_pauses(audio: np.ndarray) -> list[tuple[int, int]]:
+    """Sample ranges of the speech chunks in ``audio``, split at pauses of 0.35 s or more."""
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+    stamps = get_speech_timestamps(
+        audio,
+        VadOptions(threshold=0.35, min_silence_duration_ms=MIXED_PAUSE_MS, speech_pad_ms=200),
+    )
+    return merge_short_chunks(stamps, int(MIXED_MIN_CHUNK_S * 16_000))
+
+
 def build_initial_prompt(words: list[str], limit_chars: int = 400) -> str | None:
     """Join dictionary words (priority first) into a Whisper initial_prompt."""
     out: list[str] = []
@@ -171,9 +202,9 @@ class SttEngine:
         if self._model is None:
             raise RuntimeError("speech model is not loaded")
 
-        def run(lang: str | None):  # noqa: ANN202
+        def run(lang: str | None, data: np.ndarray | None = None):  # noqa: ANN202
             segments, info = self._model.transcribe(
-                audio,
+                audio if data is None else data,
                 language=lang,
                 initial_prompt=initial_prompt,
                 beam_size=3,
@@ -188,6 +219,11 @@ class SttEngine:
             )
             return " ".join(s.text.strip() for s in segments).strip(), info
 
+        if language is None and len(audio) >= int(MIXED_MIN_AUDIO_S * 16_000):
+            mixed = self._transcribe_mixed(audio, run)
+            if mixed is not None:
+                return mixed
+
         text, info = run(language)
         if language is None:
             forced = pick_allowed_language(info.language, getattr(info, "all_language_probs", None))
@@ -196,3 +232,46 @@ class SttEngine:
                 text, info = run(forced)
                 return text, forced, info.language_probability
         return text, info.language, info.language_probability
+
+    def _chunk_language(self, chunk: np.ndarray) -> tuple[str, float]:
+        """English or Arabic for one chunk, with the model's confidence."""
+        lang, prob, probs = self._model.detect_language(chunk, vad_filter=False)
+        forced = pick_allowed_language(lang, probs)
+        if forced:
+            prob = dict(probs).get(forced, 0.0) if probs else 0.0
+            return forced, prob
+        return lang, prob
+
+    def _transcribe_mixed(self, audio: np.ndarray, run) -> tuple[str, str, float] | None:  # noqa: ANN001
+        """If the pauses split the dictation into English and Arabic parts, write each part in
+        its own script (Whisper otherwise picks one language for the whole recording and writes
+        the other language in Latin letters, for example "Assalamu alaikum").
+
+        Returns None when the dictation is one language, so the normal single pass is used.
+        """
+        try:
+            chunks = split_by_pauses(audio)
+            if len(chunks) < 2:
+                return None
+            langs: list[str] = []
+            for a, b in chunks:
+                lang, prob = self._chunk_language(audio[a:b])
+                if prob < MIXED_MIN_CONFIDENCE and langs:
+                    lang = langs[-1]  # unsure: stay with the language of the part before
+                langs.append(lang)
+            if len(set(langs)) < 2:
+                return None
+            parts: list[str] = []
+            for (a, b), lang in zip(chunks, langs, strict=True):
+                text, _info = run(lang, audio[a:b])
+                if text:
+                    parts.append(text)
+            weight = {lang: 0 for lang in set(langs)}
+            for (a, b), lang in zip(chunks, langs, strict=True):
+                weight[lang] += b - a
+            seconds = ", ".join(f"{lang}:{n / 16000:.1f}s" for lang, n in weight.items())
+            log.info("mixed dictation: %s", seconds)
+            return " ".join(parts), max(weight, key=weight.get), 1.0
+        except Exception:  # noqa: BLE001 - never lose a dictation to the mixed-language step
+            log.exception("mixed-language pass failed; using the single pass")
+            return None

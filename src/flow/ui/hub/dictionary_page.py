@@ -244,7 +244,11 @@ class DictionaryPage(QWidget):
     # -- suggestions ----------------------------------------------------------------------------
     def refresh_suggestions(self) -> None:
         known = {e.written.casefold() for e in self.ctx.dictionary.list()}
-        found = suggest_words(self.ctx.history.all_finals(), known)
+        found = (
+            []
+            if self.ctx.settings.learn_mode == "off"
+            else suggest_words(self.ctx.history.all_finals(), known)
+        )
         self.suggestions.clear()
         for word, n in found:
             self.suggestions.addItem(f"{word}  ({n}x)")

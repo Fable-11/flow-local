@@ -165,7 +165,7 @@ def _worker(monkeypatch, auto_gain=True):
     w.engine = Engine()
     w.processor = SimpleNamespace(
         whisper_prompt=lambda: None,
-        process=lambda text, *a: SimpleNamespace(text=text, kind="text", press_enter=False),
+        process=lambda text, *a: SimpleNamespace(text=text, kind="text", press_enter=False, suggestion=None),
     )
     w.spacing = SimpleNamespace(prefix_for=lambda *a: "", record=lambda *a: None)
     w.history = SimpleNamespace(add=lambda *a: None)

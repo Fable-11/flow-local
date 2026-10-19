@@ -85,7 +85,8 @@ def test_recorder_mutes_the_cue_but_keeps_preroll_and_speech():
     rec._chunks = list(rec._preroll)
     rec._preroll.clear()
     rec._recording = True
-    feed(rec, 20, 0.9)  # beep + speech
+    feed(rec, 4, 0.01)  # the start beep leaking into the microphone: quiet
+    feed(rec, 16, 0.9)  # speech
     audio = rec.stop()
     assert audio[: preroll].max() == np.float32(0.1)  # words said just before the key: kept
     assert audio[preroll : preroll + int(0.2 * SAMPLE_RATE)].max() == 0.0  # cue span: silent
@@ -345,3 +346,20 @@ def test_windows_style_falls_back_to_soft_if_files_are_missing(monkeypatch, tmp_
     sounds.configure(True, 40, sounds.WINDOWS)
     assert sounds.style == "soft"
     sounds.configure(True, 40, "soft")
+
+
+def test_voice_inside_the_cue_window_is_kept():
+    """A short word said right at the key press must not lose its first syllable."""
+    from flow.audio.capture import blank_cue
+
+    audio = np.concatenate(
+        [
+            np.full(8000, 0.002, np.float32),  # room noise before the key
+            np.full(1600, 0.01, np.float32),  # 0.1 s of beep bleed: quiet, gets muted
+            np.full(1600, 0.2, np.float32),  # the user already speaks while the cue plays
+            np.full(8000, 0.2, np.float32),
+        ]
+    )
+    blank_cue(audio, 8000, 3520)  # a 0.22 s cue window
+    assert audio[8000:9600].max() == 0.0
+    assert audio[9700:11000].min() == np.float32(0.2)

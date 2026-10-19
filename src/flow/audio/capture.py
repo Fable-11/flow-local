@@ -13,6 +13,50 @@ SAMPLE_RATE = 16_000
 BLOCK_SAMPLES = 800  # 50 ms per callback: smooth waveform, few wake-ups
 
 
+CUE_FRAME = 320  # 20 ms
+CUE_SPEECH_FLOOR = 0.02  # louder than any bleed from the soft start sound: it must be a voice
+
+
+def blank_cue(audio: np.ndarray, start: int, length: int) -> None:
+    """Silence the start sound that leaked into the microphone, but keep the user's voice.
+
+    Plain muting clipped the first syllable of short words said right at the key press ("if",
+    "queue", a spelled letter). Each 20 ms frame is only blanked when it is quiet like the cue;
+    a frame clearly louder than both the cue bleed and the room noise before it is speech.
+    """
+    segment = audio[start : start + length]
+    ambient = float(np.sqrt(np.mean(audio[:start] ** 2))) if start > 0 else 0.0
+    threshold = max(CUE_SPEECH_FLOOR, 5.0 * ambient)
+    for i in range(0, len(segment), CUE_FRAME):
+        frame = segment[i : i + CUE_FRAME]
+        if float(np.sqrt(np.mean(frame**2))) <= threshold:
+            frame[:] = 0.0
+
+
+PREROLL_KEEP_S = 0.3  # how much audio from before the key press may join the recording
+PREROLL_TAIL_S = 0.1  # the stretch right before the key press that must hold a voice
+PREROLL_FLOOR = 0.006
+
+
+def select_preroll(pre: np.ndarray) -> np.ndarray:
+    """Pick the part of the pre-roll that belongs to this dictation.
+
+    The pre-roll exists so a word started a moment before the key press is not cut. But words
+    said earlier, then a pause, then the key press, are not part of the dictation and must not
+    leak in. So the pre-roll is only kept when someone is still speaking right at the key press,
+    and then only the last 0.3 s of it.
+    """
+    if pre.size == 0:
+        return pre
+    tail = pre[-int(PREROLL_TAIL_S * SAMPLE_RATE) :]
+    frame = int(0.05 * SAMPLE_RATE)
+    frames = [pre[i : i + frame] for i in range(0, len(pre) - frame + 1, frame)] or [pre]
+    ambient = min(float(np.sqrt(np.mean(f**2))) for f in frames)
+    if float(np.sqrt(np.mean(tail**2))) <= max(PREROLL_FLOOR, 3.0 * ambient):
+        return pre[:0]
+    return pre[-int(PREROLL_KEEP_S * SAMPLE_RATE) :]
+
+
 class Recorder:
     """Records from the default (or chosen) input device into memory.
 
@@ -82,8 +126,10 @@ class Recorder:
         start beep played through the speakers is not transcribed."""
         self.open()
         with self._lock:
-            self._chunks = list(self._preroll)
-            self._mute = (self._preroll_len, int(mute_s * SAMPLE_RATE)) if mute_s > 0 else None
+            heard = np.concatenate(self._preroll) if self._preroll else np.zeros(0, np.float32)
+            pre = select_preroll(heard)
+            self._chunks = [pre] if pre.size else []
+            self._mute = (pre.size, int(mute_s * SAMPLE_RATE)) if mute_s > 0 else None
             self._preroll.clear()
             self._preroll_len = 0
             self._recording = True
@@ -97,8 +143,7 @@ class Recorder:
             self._recording = False
         audio = self.snapshot()
         if self._mute and audio.size:
-            start, length = self._mute
-            audio[start : start + length] = 0.0
+            blank_cue(audio, *self._mute)
         self._mute = None
         if not self.keep_open:
             self.close()

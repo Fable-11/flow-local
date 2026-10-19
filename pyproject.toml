@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flow-local"
-version = "0.1.0"
+version = "0.2.0"
 description = "Offline, private voice dictation for Windows (Arabic + English)"
 readme = "README.md"
 license = "MIT"
