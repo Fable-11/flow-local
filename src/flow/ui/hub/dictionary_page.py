@@ -140,7 +140,21 @@ class DictionaryPage(QWidget):
         self.add_suggestion_btn = button("Add selected suggestion")
         self.add_suggestion_btn.clicked.connect(self.add_selected_suggestion)
         lay.addWidget(self.add_suggestion_btn, 0, Qt.AlignmentFlag.AlignLeft)
+        self.replace_label = section_title("Automatic replacements")
+        lay.addWidget(self.replace_label)
+        self.replace_help = caption(
+            "Words that were swapped for a dictionary word because they sound alike. "
+            "If one is wrong, stop it here and it will not happen again."
+        )
+        lay.addWidget(self.replace_help)
+        self.replacements = QListWidget()
+        self.replacements.setMaximumHeight(120)
+        lay.addWidget(self.replacements)
+        self.stop_btn = button("Stop this replacement")
+        self.stop_btn.clicked.connect(self.toggle_replacement)
+        lay.addWidget(self.stop_btn, 0, Qt.AlignmentFlag.AlignLeft)
         ctx.historyChanged.connect(self.refresh_suggestions)
+        ctx.historyChanged.connect(self.refresh_replacements)
         notifier.changed.connect(self.refresh)  # star colours follow the theme
         self.refresh()
 
@@ -148,6 +162,7 @@ class DictionaryPage(QWidget):
     def refresh(self) -> None:
         entries = self.ctx.dictionary.list(self.search.text())
         self.refresh_suggestions()
+        self.refresh_replacements()
         self.table.setRowCount(len(entries))
         for r, e in enumerate(entries):
             star = QTableWidgetItem(STAR_ON if e.starred else STAR_OFF)
@@ -256,6 +271,25 @@ class DictionaryPage(QWidget):
         visible = bool(found)
         for w in (self.suggest_label, self.suggest_help, self.suggestions, self.add_suggestion_btn):
             w.setVisible(visible)
+
+    def refresh_replacements(self) -> None:
+        log = self.ctx.dictionary.replacement_log()
+        self.replacements.clear()
+        for r in log:
+            label = f"“{r.heard}” → {r.written}   ({r.count}x)"
+            self.replacements.addItem(label + ("   stopped" if r.blocked else ""))
+            item = self.replacements.item(self.replacements.count() - 1)
+            item.setData(Qt.ItemDataRole.UserRole, (r.heard, r.written, r.blocked))
+        for w in (self.replace_label, self.replace_help, self.replacements, self.stop_btn):
+            w.setVisible(bool(log))
+
+    def toggle_replacement(self) -> None:
+        item = self.replacements.currentItem()
+        if item is None:
+            return
+        heard, written, blocked = item.data(Qt.ItemDataRole.UserRole)
+        self.ctx.dictionary.set_replacement_blocked(heard, written, not blocked)
+        self.refresh_replacements()
 
     def add_selected_suggestion(self) -> None:
         item = self.suggestions.currentItem()

@@ -37,7 +37,9 @@ from flow.hotkeys.bindings import (
 )
 from flow.hotkeys.winhook import HotkeyListener
 from flow.insert import clipboard, winapi
+from flow.insert.caret import read_around
 from flow.insert.context import get_active_app
+from flow.insert.fit import fit_to_context
 from flow.insert.paste import method_for, paste_text
 from flow.insert.selection import SelectionError, capture_selection
 from flow.insert.spacing import SpacingTracker
@@ -495,7 +497,14 @@ class Worker:
             if not result.text and not result.press_enter:
                 emit("idle", "")
                 return
-            out = self.spacing.prefix_for(app.hwnd, result.text) + result.text
+            out = result.text
+            around = None
+            if result.kind == "text" and s.fit_to_text and not result.press_enter:
+                around = read_around(app.process)
+            if around is not None:  # we know what is next to the cursor
+                out = fit_to_context(out, around.before, around.after)
+            else:
+                out = self.spacing.prefix_for(app.hwnd, out) + out
             if out:
                 paste_text(out, method_for(app.process))
                 self.spacing.record(app.hwnd, out)

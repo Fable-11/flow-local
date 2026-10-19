@@ -64,6 +64,17 @@ MIGRATIONS: list[str] = [
     );
     CREATE TABLE rejected (term TEXT PRIMARY KEY COLLATE NOCASE);
     """,
+    # v4: what the automatic sound matching replaced, so the user can stop a wrong pair
+    """
+    CREATE TABLE auto_replacements (
+        heard TEXT NOT NULL COLLATE NOCASE,
+        written TEXT NOT NULL COLLATE NOCASE,
+        count INTEGER NOT NULL DEFAULT 1,
+        last_at TEXT NOT NULL,
+        blocked INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (heard, written)
+    );
+    """,
 ]
 
 

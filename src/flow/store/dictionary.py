@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from flow.store.db import Database
+from flow.store.fuzzy import Target, make_target, replace_similar
 from flow.store.terms import candidate_terms
 
 MAX_LEN = 80
@@ -29,6 +30,14 @@ class DictEntry:
     auto: bool = False  # learned automatically rather than typed in by the user
 
 
+@dataclass(frozen=True)
+class Replacement:
+    heard: str
+    written: str
+    count: int
+    blocked: bool
+
+
 def _stamp(when: datetime | None = None) -> str:
     """Timestamp in the same format SQLite CURRENT_TIMESTAMP uses, so strings compare correctly."""
     return (when or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
@@ -44,6 +53,10 @@ class DictionaryStore:
         self.db = db
         self._regex: re.Pattern[str] | None = None
         self._map: dict[str, str] = {}
+        self._targets: list[Target] = []
+        self._known: set[str] = set()
+        self._blocked: set[tuple[str, str]] = set()
+        self.fuzzy = True  # also replace words that merely sound like a dictionary word
 
     # -- CRUD ---------------------------------------------------------------------------
     def add(
@@ -105,7 +118,7 @@ class DictionaryStore:
     def words_for_prompt(self, limit: int = 60) -> list[str]:
         """Written forms, starred first, then most used. Used for Whisper and the LLM."""
         rows = self.db.query(
-            "SELECT written FROM dictionary "
+            "SELECT written FROM dictionary WHERE auto = 0 OR uses >= 2 "  # learned: earn it
             "ORDER BY starred DESC, uses DESC, IFNULL(last_used, '') DESC, "
             "written COLLATE NOCASE LIMIT ?",
             (limit,),
@@ -123,6 +136,18 @@ class DictionaryStore:
             if e.spoken:
                 mapping[e.spoken.casefold()] = e.written
         self._map = mapping
+        entries = self.list()
+        # sound matching only uses words the user typed in; learned words just fix casing
+        self._targets = [tg for e in entries if not e.auto and (tg := make_target(e.written))]
+        self._blocked = {
+            (r['heard'].lower(), r['written'].lower())
+            for r in self.db.query('SELECT heard, written FROM auto_replacements WHERE blocked = 1')
+        }
+        self._known = {
+            w.lower()
+            for e in entries
+            for w in re.findall(r"[A-Za-z']+", f"{e.written} {e.spoken or ''}")
+        }
         keys = sorted(mapping, key=len, reverse=True)
         self._regex = (
             re.compile(r"(?<!\w)(?:" + "|".join(map(re.escape, keys)) + r")(?!\w)", re.IGNORECASE)
@@ -143,7 +168,37 @@ class DictionaryStore:
             hits.append(written)
             return written
 
-        return self._regex.sub(sub, text), hits
+        text = self._regex.sub(sub, text)
+        if self.fuzzy:
+            text, similar = replace_similar(text, self._targets, self._known, self._blocked)
+            self._log_replacements(similar)
+            hits += [written for _heard, written in similar]
+        return text, hits
+
+    # -- automatic replacements: log and stop -------------------------------------------
+    def _log_replacements(self, pairs: list[tuple[str, str]]) -> None:
+        now = _stamp()
+        for heard, written in pairs:
+            self.db.execute(
+                "INSERT INTO auto_replacements (heard, written, last_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(heard, written) DO UPDATE SET count = count + 1, last_at = ?",
+                (heard.lower(), written, now, now),
+            )
+
+    def replacement_log(self) -> list[Replacement]:
+        rows = self.db.query(
+            "SELECT heard, written, count, blocked FROM auto_replacements "
+            "ORDER BY blocked, last_at DESC LIMIT 50"
+        )
+        return [Replacement(r["heard"], r["written"], r["count"], bool(r["blocked"])) for r in rows]
+
+    def set_replacement_blocked(self, heard: str, written: str, blocked: bool) -> None:
+        """Stop (or allow again) one automatic replacement; other words are not affected."""
+        self.db.execute(
+            "UPDATE auto_replacements SET blocked = ? WHERE heard = ? AND written = ?",
+            (int(blocked), heard, written),
+        )
+        self._regex = None
 
     def record_use(self, words: list[str]) -> None:
         now = _stamp()

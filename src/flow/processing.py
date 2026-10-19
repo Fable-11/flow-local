@@ -8,6 +8,7 @@ from flow.arabicphrases import arabic_phrases
 from flow.cleanup.appstyles import resolve_style
 from flow.cleanup.pipeline import CleanResult, CleanupPipeline
 from flow.cleanup.prompts import PromptContext
+from flow.links import protect_links, restore_links, speak_to_links
 from flow.smartterms import fix_terms
 from flow.store.dictionary import DictionaryStore
 from flow.store.snippets import SnippetStore
@@ -54,13 +55,14 @@ class TextProcessor:
         snippet = self.snippets.match_exact(raw)
         if snippet:  # inserted verbatim: no cleanup, no replacements
             return ProcessResult(snippet.content, "snippet")
-        text, hits = self.dictionary.apply_replacements(raw)
+        text, links = protect_links(speak_to_links(raw))  # links are typed, not cleaned up
+        text, hits = self.dictionary.apply_replacements(text)
         if self.smart_terms:
             text = fix_terms(text)
         if self.arabic_phrases:
             text = arabic_phrases(text)
         if not self.cleanup_enabled:  # insert the transcript as Whisper wrote it
-            text, _ = self.snippets.expand_embedded(text.strip())
+            text, _ = self.snippets.expand_embedded(restore_links(text, links).strip())
             self.dictionary.record_use(hits)
             return ProcessResult(
                 text, "text" if text else "empty", suggestion=self._learn(text)
@@ -80,9 +82,10 @@ class TextProcessor:
             out = fix_terms(out)
         if self.arabic_phrases:
             out = arabic_phrases(out)
+        suggestion = self._learn(out)
+        out = restore_links(out, links)  # last, so nothing above can touch a link
         out, _ = self.snippets.expand_embedded(out)
         self.dictionary.record_use(hits + hits2)
-        suggestion = self._learn(out)
         press = cleaned.press_enter
         if press:
             out = out.rstrip("\n")

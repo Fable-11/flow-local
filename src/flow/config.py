@@ -59,6 +59,7 @@ class Settings:
     custom_instructions: str = ""
     spoken_commands: bool = True
     smart_terms: bool = True  # fix product names such as Claude, ChatGPT, GitHub by context
+    fit_to_text: bool = True  # fit capitals, spaces and the full stop to the text around the cursor
     arabic_phrases: bool = True  # write "Assalamu alaikum", "inshallah" ... in Arabic script
     learn_mode: str = "auto"  # LEARN_MODES: add words silently, ask first, or never
     press_enter: bool = False  # experimental

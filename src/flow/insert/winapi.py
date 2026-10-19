@@ -9,6 +9,7 @@ from ctypes import wintypes
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 
 INPUT_KEYBOARD = 1
+KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
 
@@ -21,6 +22,9 @@ VK_RWIN = 0x5C
 VK_DUMMY = 0xE8  # unassigned; used to cancel the Start-menu trigger on Win release
 VK_V = 0x56
 VK_C = 0x43
+VK_LEFT = 0x25
+VK_RIGHT = 0x27
+_EXTENDED = {0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E}  # arrows, Home...
 
 ULONG_PTR = ctypes.c_size_t
 
@@ -63,6 +67,8 @@ user32.GetAsyncKeyState.restype = wintypes.SHORT
 
 def _key(vk: int = 0, up: bool = False, char: int | None = None) -> INPUT:
     flags = KEYEVENTF_KEYUP if up else 0
+    if vk in _EXTENDED:
+        flags |= KEYEVENTF_EXTENDEDKEY  # otherwise NumLock can turn arrows into digits
     scan = 0
     if char is not None:
         flags |= KEYEVENTF_UNICODE

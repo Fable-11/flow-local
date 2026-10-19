@@ -397,6 +397,12 @@ class SettingsPage(QWidget):
             "smart_terms",
             "Uses context to write Claude (not cloud), my eye (not my I) and the queue (not the Q).",
         )
+        self.fit_to_text = self._check(
+            panel,
+            "Fit to the text around the cursor",
+            "fit_to_text",
+            "Dictating in the middle of a sentence: no stray capital letter or full stop.",
+        )
         self.arabic_phrases = self._check(
             panel,
             "Arabic phrases in Arabic script",

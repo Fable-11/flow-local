@@ -30,6 +30,7 @@ _CORRECTION_HINT = re.compile(
     re.IGNORECASE,
 )
 _WORD = re.compile(r"[\w؀-ۿ]+", re.UNICODE)
+_LINK_TOKEN = re.compile(r"⟦U\d+⟧")
 _AR_LETTER = re.compile(r"[ء-ي]")
 _LATIN_LETTER = re.compile(r"[A-Za-z]")
 
@@ -76,6 +77,8 @@ def validate_llm_output(source: str, out: str) -> str | None:
         return "preamble"
     if any(source.count(s) != out.count(s) for s in SENTINELS):
         return "markers changed"
+    if sorted(_LINK_TOKEN.findall(source)) != sorted(_LINK_TOKEN.findall(out)):
+        return "link placeholder changed"
     if not _CORRECTION_HINT.search(source):
         out_words = set(_words(out))
         lost = sorted(w for w in set(_words(source)) & _PROTECTED if w not in out_words)

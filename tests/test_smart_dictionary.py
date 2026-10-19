@@ -106,6 +106,9 @@ def test_word_is_learned_after_three_separate_dictations(db):
     assert d.learn("and Kubernetes scales it") == ["Kubernetes"]
     entry = d.get("kubernetes")
     assert entry is not None and entry.auto and entry.written == "Kubernetes"
+    assert d.words_for_prompt() == []  # a learned word must be used twice before it steers Whisper
+    d.record_use(["Kubernetes"])
+    d.record_use(["Kubernetes"])
     assert d.words_for_prompt() == ["Kubernetes"]
 
 
@@ -147,6 +150,8 @@ def test_recently_used_words_rank_first_and_stale_auto_words_are_pruned(db):
     d = DictionaryStore(db)
     for w in ("Alpha", "Beta"):
         d.add(w, auto=True)
+    d.record_use(["Alpha", "Beta"])
+    d.record_use(["Alpha", "Beta"])
     d.record_use(["Beta"])
     assert d.words_for_prompt() == ["Beta", "Alpha"]
     db.execute("UPDATE dictionary SET created_at = '2000-01-01 00:00:00'")
@@ -171,7 +176,7 @@ def make_processor(db):
 
 def test_processor_fixes_claude_and_learns_it(db):
     p = make_processor(db)
-    for _ in range(3):
+    for _ in range(5):  # learned on the 3rd, then used twice before it steers Whisper
         r = p.process("i asked cloud to review it with anthropic tools")
     assert "Claude" in r.text and "cloud" not in r.text
     assert p.dictionary.get("Claude") is not None  # now it also biases Whisper
