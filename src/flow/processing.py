@@ -14,6 +14,7 @@ from flow.store.dictionary import DictionaryStore
 from flow.store.snippets import SnippetStore
 from flow.store.suggestgate import SuggestionGate
 from flow.stt.engine import build_initial_prompt
+from flow.symbols import speak_symbols
 
 
 @dataclass
@@ -42,6 +43,7 @@ class TextProcessor:
         self.cleanup_enabled = True
         self.app_styles: dict[str, str] = {}
         self.smart_terms = True
+        self.spoken_symbols = True
         self.arabic_phrases = True
         # auto: add silently, ask: prompt on the bar, suggest: Dictionary page only, off
         self.learn_mode = "auto"
@@ -55,6 +57,8 @@ class TextProcessor:
         snippet = self.snippets.match_exact(raw)
         if snippet:  # inserted verbatim: no cleanup, no replacements
             return ProcessResult(snippet.content, "snippet")
+        if self.spoken_symbols:
+            raw = speak_symbols(raw)
         text, links = protect_links(speak_to_links(raw))  # links are typed, not cleaned up
         text, hits = self.dictionary.apply_replacements(text)
         if self.smart_terms:

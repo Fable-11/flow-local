@@ -284,6 +284,7 @@ class Worker:
         self.processor.custom_instructions = s.custom_instructions
         self.processor.cleanup_enabled = s.cleanup_enabled
         self.processor.smart_terms = s.smart_terms
+        self.processor.spoken_symbols = s.spoken_commands
         self.processor.arabic_phrases = s.arabic_phrases
         self.processor.learn_mode = s.learn_mode
         self.processor.app_styles = s.app_styles

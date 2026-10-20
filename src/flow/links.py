@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+from flow.symbols import EXTENSIONS
+
 TLDS = (
     "com|net|org|io|co|app|dev|ai|edu|gov|info|me|sa|ae|uk|us|tv|xyz|cloud|tech|online|site|"
     "store|blog|page|link"
@@ -45,8 +47,12 @@ _SIGNS = (
 )
 _SPACED_DOT = re.compile(rf"(?<=[A-Za-z0-9])(?:\s\.|\.\s)(?=(?:{TLDS})\b(?![A-Za-z0-9]))")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+_SYMBOL_CHARS = r"@#_/\\&%$+=*~"
 _LINK = re.compile(
-    rf"(?:\b(?:https?|ftp)://)?(?:[A-Za-z0-9-]+\.)+(?:{TLDS})\b(?:/[^\s]*)?|{_EMAIL.pattern}",
+    rf"(?:\b(?:https?|ftp)://)?(?:[A-Za-z0-9-]+\.)+(?:{TLDS})\b(?:/[^\s]*)?"
+    rf"|{_EMAIL.pattern}"
+    rf"|\b[\w-]+(?:\.[\w-]+)*\.(?:{EXTENSIONS})\b"  # file names: index.js
+    rf"|[\w.-]*[{_SYMBOL_CHARS}][\w.{_SYMBOL_CHARS}-]*",  # user_name, #flow, a/b, 50%, $5
     re.IGNORECASE,
 )
 _TRAILING = ".,;:!?)\"'"

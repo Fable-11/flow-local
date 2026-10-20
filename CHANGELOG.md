@@ -3,7 +3,20 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.3.0 (not released yet)
+## 0.3.1 (not released yet)
+
+- Symbols said aloud are written as the symbol: "underscore" becomes _, "at sign" (also heard as
+  "add sign" or "at the rate") becomes @, "hashtag", "dollar sign", "percent sign", "ampersand",
+  "plus sign", "equals sign", brackets and "back slash" likewise. "dot" becomes a dot where that is
+  clearly meant ("index dot js", "three dot five"), and "slash" in pairs like "yes slash no".
+- "at gmail dot com" (also yahoo, outlook, hotmail, icloud and similar) becomes @gmail.com, so
+  "john underscore smith at sign gmail dot com" gives john_smith@gmail.com.
+- Results such as user_name, #flow, index.js or a/b are protected from the cleanup step, so they
+  keep their exact spelling and are not capitalised.
+- Ordinary sentences are left alone: "she put a dot on the map", "the at sign is on my keyboard".
+  Controlled by Settings > Cleanup > Spoken commands.
+
+## 0.3.0
 
 - Dictionary words are now replaced automatically when the speech model writes something that
   sounds like them ("cuber nettys" becomes the word you added), without typing a spoken form.
