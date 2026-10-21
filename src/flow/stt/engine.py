@@ -5,6 +5,7 @@ from __future__ import annotations
 import gc
 import logging
 import os
+import re
 import site
 import sys
 import time
@@ -117,6 +118,69 @@ def split_by_pauses(audio: np.ndarray) -> list[tuple[int, int]]:
     return merge_short_chunks(stamps, int(MIXED_MIN_CHUNK_S * 16_000))
 
 
+LANG_SURE = 0.85  # language-ID share (of English+Arabic) needed to overrule the setting
+LANG_UNSURE = 0.15  # between LANG_UNSURE and 1 - LANG_UNSURE the audio is too unclear to trust
+BETTER_BY = 0.1  # the second language must beat the first by this much average log-probability
+INVENTED_BELOW = -0.3  # a stock phrase is only dropped when the model was also unsure of it
+# What the model makes up when it is forced into the wrong language (or hears silence).
+_INVENTED = {
+    "اشتركوا في القناة", "اشترك في القناة", "اشتركوا بالقناة", "ترجمة نانسي قنقر",
+    "شكرا على المشاهدة", "شكرا لكم على المشاهدة", "subscribe to the channel",
+    "please subscribe", "thanks for watching", "thank you for watching",
+}
+
+
+def _normal(text: str) -> str:
+    return re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip().lower()
+
+
+_INVENTED_NORMAL = {_normal(s) for s in _INVENTED}
+
+
+@dataclass(frozen=True)
+class Decoded:
+    text: str
+    quality: float  # average log-probability of the words, higher is better
+    language: str
+    share: float  # language-ID share of the language used
+
+    @property
+    def invented(self) -> bool:
+        return _normal(self.text) in _INVENTED_NORMAL and self.quality < INVENTED_BELOW
+
+
+def segment_quality(segments: list) -> float:
+    """Duration-weighted average log-probability, lowered for repetition and for silence."""
+    if not segments:
+        return -9.0
+    total = weight = 0.0
+    for s in segments:
+        w = max(float(getattr(s, "end", 0.0)) - float(getattr(s, "start", 0.0)), 0.01)
+        q = float(getattr(s, "avg_logprob", -0.3))
+        if float(getattr(s, "compression_ratio", 1.0)) > 2.4:
+            q -= 0.5  # looping text
+        if float(getattr(s, "no_speech_prob", 0.0)) > 0.6:
+            q -= 0.5
+        total += q * w
+        weight += w
+    return total / weight
+
+
+def choose_language(preferred: str | None, share_en: float) -> tuple[str, bool]:
+    """(language to try first, whether the audio is too unclear to trust that choice).
+
+    The audio decides. The setting only breaks ties: it is overruled when language-ID is sure
+    the speech is in the other language.
+    """
+    if preferred == "ar":
+        lean = "en" if share_en >= LANG_SURE else "ar"
+    elif preferred == "en":
+        lean = "ar" if share_en <= 1 - LANG_SURE else "en"
+    else:
+        lean = "en" if share_en >= 0.5 else "ar"
+    return lean, LANG_UNSURE < share_en < 1 - LANG_UNSURE
+
+
 def build_initial_prompt(words: list[str], limit_chars: int = 400) -> str | None:
     """Join dictionary words (priority first) into a Whisper initial_prompt."""
     out: list[str] = []
@@ -198,80 +262,97 @@ class SttEngine:
         initial_prompt: str | None = None,
         quiet: bool = False,
     ) -> tuple[str, str, float]:
-        """Return (text, detected_language, language_probability)."""
+        """Return (text, main_language, language_share).
+
+        English and Arabic are both understood whatever ``language`` says. The recording is cut
+        at pauses and the language of each part is taken from the audio, because a language fixed
+        in advance makes the model invent text when the speech is in the other one.
+        """
         if self._model is None:
             raise RuntimeError("speech model is not loaded")
+        preferred = language if language in ALLOWED_LANGUAGES else None
+        chunks = self._speech_chunks(audio)
+        shares = [self._english_share(audio[a:b]) for a, b in chunks]
+        if len(chunks) > 1 and None not in shares:
+            plan = [choose_language(preferred, s) for s in shares]
+            if len({lean for lean, _ in plan}) == 1 and not any(unsure for _, unsure in plan):
+                # one language throughout: decode the recording once and keep its context
+                lean = plan[0][0]
+                whole = self._decode(audio, lean, initial_prompt, quiet, sum(shares) / len(shares))
+                if not whole.invented and whole.text:
+                    return whole.text, lean, whole.share
+        parts: list[str] = []
+        weight: dict[str, int] = {}
+        share = 1.0
+        for (a, b), share_en in zip(chunks, shares, strict=True):
+            done = self._decode_chunk(audio[a:b], preferred, initial_prompt, quiet, share_en)
+            if done.text:
+                parts.append(done.text)
+                weight[done.language] = weight.get(done.language, 0) + (b - a)
+                share = done.share
+        main = max(weight, key=weight.get) if weight else (preferred or "en")
+        return " ".join(parts).strip(), main, share
 
-        def run(lang: str | None, data: np.ndarray | None = None):  # noqa: ANN202
-            segments, info = self._model.transcribe(
-                audio if data is None else data,
-                language=lang,
-                initial_prompt=initial_prompt,
-                beam_size=3,
-                vad_filter=True,
-                # generous padding so soft word starts/ends are not clipped by the VAD
-                vad_parameters={
-                    "threshold": 0.2 if quiet else 0.35,
-                    "speech_pad_ms": 400,
-                    "min_silence_duration_ms": 800,
-                },
-                condition_on_previous_text=False,
-            )
-            return " ".join(s.text.strip() for s in segments).strip(), info
-
-        if language is None and len(audio) >= int(MIXED_MIN_AUDIO_S * 16_000):
-            mixed = self._transcribe_mixed(audio, run)
-            if mixed is not None:
-                return mixed
-
-        text, info = run(language)
-        if language is None:
-            forced = pick_allowed_language(info.language, getattr(info, "all_language_probs", None))
-            if forced:  # auto-detect picked an unsupported language: redo it in en or ar
-                log.info("language %s unsupported; re-transcribing as %s", info.language, forced)
-                text, info = run(forced)
-                return text, forced, info.language_probability
-        return text, info.language, info.language_probability
-
-    def _chunk_language(self, chunk: np.ndarray) -> tuple[str, float]:
-        """English or Arabic for one chunk, with the model's confidence."""
-        lang, prob, probs = self._model.detect_language(chunk, vad_filter=False)
-        forced = pick_allowed_language(lang, probs)
-        if forced:
-            prob = dict(probs).get(forced, 0.0) if probs else 0.0
-            return forced, prob
-        return lang, prob
-
-    def _transcribe_mixed(self, audio: np.ndarray, run) -> tuple[str, str, float] | None:  # noqa: ANN001
-        """If the pauses split the dictation into English and Arabic parts, write each part in
-        its own script (Whisper otherwise picks one language for the whole recording and writes
-        the other language in Latin letters, for example "Assalamu alaikum").
-
-        Returns None when the dictation is one language, so the normal single pass is used.
-        """
+    def _speech_chunks(self, audio: np.ndarray) -> list[tuple[int, int]]:
+        whole = [(0, len(audio))]
+        if len(audio) < int(MIXED_MIN_AUDIO_S * 16_000):
+            return whole
         try:
-            chunks = split_by_pauses(audio)
-            if len(chunks) < 2:
-                return None
-            langs: list[str] = []
-            for a, b in chunks:
-                lang, prob = self._chunk_language(audio[a:b])
-                if prob < MIXED_MIN_CONFIDENCE and langs:
-                    lang = langs[-1]  # unsure: stay with the language of the part before
-                langs.append(lang)
-            if len(set(langs)) < 2:
-                return None
-            parts: list[str] = []
-            for (a, b), lang in zip(chunks, langs, strict=True):
-                text, _info = run(lang, audio[a:b])
-                if text:
-                    parts.append(text)
-            weight = {lang: 0 for lang in set(langs)}
-            for (a, b), lang in zip(chunks, langs, strict=True):
-                weight[lang] += b - a
-            seconds = ", ".join(f"{lang}:{n / 16000:.1f}s" for lang, n in weight.items())
-            log.info("mixed dictation: %s", seconds)
-            return " ".join(parts), max(weight, key=weight.get), 1.0
-        except Exception:  # noqa: BLE001 - never lose a dictation to the mixed-language step
-            log.exception("mixed-language pass failed; using the single pass")
+            return split_by_pauses(audio) or whole
+        except Exception:  # noqa: BLE001 - never lose a dictation to the splitting step
+            log.exception("could not split the recording at pauses")
+            return whole
+
+    def _english_share(self, chunk: np.ndarray) -> float | None:
+        """English's share of the English+Arabic language-ID probability, or None if unavailable."""
+        try:
+            _lang, _prob, probs = self._model.detect_language(chunk, vad_filter=False)
+            by_lang = dict(probs or [])
+            en, ar = by_lang.get("en", 0.0), by_lang.get("ar", 0.0)
+            return en / (en + ar) if en + ar > 0 else None
+        except Exception:  # noqa: BLE001
+            log.exception("language check failed; using the language setting")
             return None
+
+    def _decode(
+        self, chunk: np.ndarray, lang: str, prompt: str | None, quiet: bool, share: float
+    ) -> Decoded:
+        segments, _info = self._model.transcribe(
+            chunk,
+            language=lang,
+            initial_prompt=prompt,
+            beam_size=3,
+            vad_filter=True,
+            # generous padding so soft word starts/ends are not clipped by the VAD
+            vad_parameters={
+                "threshold": 0.2 if quiet else 0.35,
+                "speech_pad_ms": 400,
+                "min_silence_duration_ms": 800,
+            },
+            condition_on_previous_text=False,
+        )
+        segs = list(segments)
+        text = " ".join(s.text.strip() for s in segs).strip()
+        return Decoded(text, segment_quality(segs), lang, share if lang == "en" else 1 - share)
+
+    def _decode_chunk(
+        self,
+        chunk: np.ndarray,
+        preferred: str | None,
+        prompt: str | None,
+        quiet: bool,
+        share_en: float | None,
+    ) -> Decoded:
+        if share_en is None:  # no language check: trust the setting (English when it is automatic)
+            return self._decode(chunk, preferred or "en", prompt, quiet, 1.0)
+        lean, unsure = choose_language(preferred, share_en)
+        first = self._decode(chunk, lean, prompt, quiet, share_en)
+        if not unsure and not first.invented:
+            return first
+        other = "ar" if lean == "en" else "en"
+        second = self._decode(chunk, other, prompt, quiet, share_en)
+        if first.invented and second.invented:
+            return Decoded("", -9.0, lean, share_en)
+        if first.invented or (not second.invented and second.quality > first.quality + BETTER_BY):
+            return second
+        return first

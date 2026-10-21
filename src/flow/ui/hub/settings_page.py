@@ -224,7 +224,7 @@ class SettingsPage(QWidget):
         )
         panel.add_row(
             "Spoken language",
-            "Auto-detect handles Arabic, English and mixed sentences for each dictation.",
+            "English and Arabic are both understood in every setting, part by part. The choice only decides which one wins when the speech is unclear.",
             self.language,
         )
 

@@ -3,7 +3,21 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.3.1 (not released yet)
+## 0.3.2 (not released yet)
+
+- Fixed English and Arabic in one dictation. The language is now taken from the audio, part by part
+  (the recording is cut at pauses), instead of being fixed by the setting or by one guess for the
+  whole recording. A language fixed in advance made the speech model invent text when the speech
+  was in the other language: with the setting on Arabic, "use skill superpowers" came out as
+  "subscribe to the channel" in Arabic, and the English at the end of a dictation turned into Arabic
+  nonsense.
+- The language setting is now "English and Arabic (automatic)", "English first" or "Arabic first":
+  both languages are understood in every case and the choice only decides close calls.
+- When the audio is unclear the app also tries the other language and keeps the more confident
+  result. Stock invented phrases ("subscribe to the channel") are dropped instead of inserted.
+- A recording that is all one language is still decoded in one pass, so its context is kept.
+
+## 0.3.1
 
 - Symbols said aloud are written as the symbol: "underscore" becomes _, "at sign" (also heard as
   "add sign" or "at the rate") becomes @, "hashtag", "dollar sign", "percent sign", "ampersand",

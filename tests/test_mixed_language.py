@@ -123,12 +123,9 @@ def test_a_failure_in_the_mixed_step_falls_back_to_the_normal_pass(monkeypatch):
     assert text and len(model.calls) == 1
 
 
-def test_forced_language_and_short_audio_never_split(monkeypatch):
+def test_short_audio_is_never_split(monkeypatch):
     audio, chunks = _audio()
     monkeypatch.setattr(engine_mod, "split_by_pauses", lambda a: chunks)
     model = MixedModel()
-    _engine(model).transcribe(audio, language="en")
-    assert len(model.calls) == 1
-    model.calls.clear()
     _engine(model).transcribe(audio[: SR * 2])  # under 3 s
     assert len(model.calls) == 1

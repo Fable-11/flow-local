@@ -8,7 +8,11 @@ from flow.cleanup.llm import DEFAULT_MODEL
 from flow.hotkeys.bindings import DEFAULT_BINDINGS, find_conflicts, parse_chord
 from flow.store.settings_repo import SettingsRepo
 
-LANGUAGES = {"auto": "Auto-detect", "en": "English", "ar": "Arabic"}
+LANGUAGES = {
+    "auto": "English and Arabic (automatic)",
+    "en": "English first",
+    "ar": "Arabic first",
+}
 STT_MODELS = ["auto", "tiny", "base", "small", "medium", "large-v3-turbo", "large-v3"]
 SOUND_STYLES = {
     "soft": "Soft bloop (default)",

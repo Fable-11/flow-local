@@ -133,7 +133,7 @@ The Flow Bar at the bottom of the screen shows what is happening: a waveform whi
 
 **Dictating in the middle of text.** In browsers, Word, Outlook, Slack, Discord, Teams, WhatsApp and a few other apps the capital letter, the spaces and the final full stop are fitted to the text around the cursor. Nothing happens when text is selected, and it can be switched off in Settings > Cleanup.
 
-**Mixed English and Arabic.** If you pause between an English part and an Arabic part, each part is written in its own script. Well-known phrases like Assalamu alaikum, inshallah and alhamdulillah are written in Arabic even inside an English sentence (switch off in Settings > Cleanup). Changing language in the middle of one unbroken phrase is still left to the speech model.
+**Mixed English and Arabic.** The language is taken from the audio, part by part (the recording is cut at pauses), so an English sentence followed by an Arabic one is written in each language's own script, and your language setting cannot make the model invent text in the wrong language. It only decides close calls. Well-known phrases like Assalamu alaikum, inshallah and alhamdulillah are written in Arabic even inside an English sentence (switch off in Settings > Cleanup). Changing language in the middle of one unbroken phrase is still left to the speech model.
 
 **Product names.** Well-known names are fixed from context, for example "cloud" becomes "Claude" when you say "ask cloud", "cloud code" or mention Anthropic, while "cloud storage" stays as it is. Also ChatGPT, OpenAI, GitHub and VS Code.
 
