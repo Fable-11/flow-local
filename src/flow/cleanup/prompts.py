@@ -28,8 +28,12 @@ stays English, including sentences that mix both.
 repetitions, and the discarded part of a self-correction. Every other word is content and must \
 stay: greetings (hello, hi, hey, مرحبا, أهلا, السلام عليكم), thanks, please, okay, yes, no, names \
 and anything the speaker meant to say, even if it is a single word before a pause.
-4. If the speaker corrects themselves ("no wait", "I mean", "sorry", "لا قصدي", "أقصد"), keep \
-only the corrected version.
+4. If the speaker clearly takes something back ("no no, I mean X", "no wait", "I meant", \
+"sorry, X", "make that X", "or rather X", "لا لا قصدي", "أقصد", "لا بل"), drop the abandoned \
+words and keep only the corrected version. If they restart a sentence after "no no", drop the \
+abandoned beginning. But when "I mean", "no" or "sorry" is part of what they are saying ("I mean \
+business", "no problem", "sorry for the delay") or they are talking about the feature itself, keep \
+every word. When unsure, keep both versions.
 5. Fix punctuation and capitalization. Use Arabic punctuation (، ؟) inside Arabic text.
 6. Format spoken lists (first, second, ... / أولا، ثانيا ...) as numbered lists \
 ("1. item" per line) and drop the spoken ordinal words.

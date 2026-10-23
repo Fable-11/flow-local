@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from flow.cleanup.corrections import mentioned, repair_corrections
+
 # Sentinels survive the LLM untouched and become whitespace in ``apply_post``.
 NL = "⟦NL⟧"
 PARA = "⟦P⟧"
@@ -136,13 +138,27 @@ def _self_corrections(text: str) -> str:
         if new == text:
             break
         text = new
+    pos = 0
     while True:
-        m = _SCRATCH.search(text)
+        m = _SCRATCH.search(text, pos)
         if not m:
             break
         before = text[: m.start()]
-        cut = max(before.rfind(c) for c in ".!?؟\n")
-        text = (before[: cut + 1] if cut >= 0 else "") + " " + text[m.end() :]
+        sentence_start = max(before.rfind(c) for c in ".!?؟\n") + 1
+        if mentioned(before[sentence_start:], before):  # "say scratch that to delete a sentence"
+            pos = m.end()
+            continue
+        cut = sentence_start
+        if sentence_start == 0:  # nothing marks the end of the previous sentence
+            lead = before.rstrip(" ,،")  # the pause right before "scratch that" is not a boundary
+            comma = max(lead.rfind(","), lead.rfind("،"))
+            if comma >= 0:
+                cut = comma + 1
+            else:  # never erase a whole unpunctuated dictation: at most the last 12 words
+                words = list(re.finditer(r"\S+", lead))
+                cut = words[-12].start() if len(words) > 12 else 0
+        text = before[:cut] + " " + text[m.end() :]
+        pos = 0
     return text
 
 
@@ -151,6 +167,8 @@ def apply_pre(text: str, opts: RuleOptions | None = None) -> str:
     opts = opts or RuleOptions()
     if opts.spoken_commands:
         text = _spoken_commands(text, opts)
+    if opts.self_corrections:  # first: the fillers step would eat "I mean," before it is seen
+        text = repair_corrections(text)
     if opts.remove_fillers:
         text = _fillers(text)
     if opts.self_corrections:

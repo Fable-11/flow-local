@@ -25,8 +25,9 @@ _PROTECTED = frozenset(
     "مرحبا مرحباً اهلا أهلا السلام شكرا شكراً".split()
 )
 _CORRECTION_HINT = re.compile(
-    r"no[,.]?\s+wait|wait[,.]?\s+no|i\s+mean|i\s+meant|scratch\s+that|actually[,.]?\s+no|"
-    r"make\s+that|or\s+rather|لا\s+لحظة|قصدي|[اأ]قصد|امسح|تجاهل",
+    r"no[,.]?\s+wait|wait[,.]?\s+no|no[,.]?\s+no|i\s+mean|i\s+meant|scratch\s+that|"
+    r"actually[,.]?\s+no|make\s+that|or\s+rather|sorry|لا\s+لا|لا\s+بل|لا\s+لحظة|قصدي|"
+    r"[اأ]قصد|امسح|تجاهل",
     re.IGNORECASE,
 )
 _WORD = re.compile(r"[\w؀-ۿ]+", re.UNICODE)

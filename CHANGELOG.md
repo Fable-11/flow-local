@@ -3,7 +3,25 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.3.2 (not released yet)
+## 0.3.3 (not released yet)
+
+- Self-corrections are resolved by rules that work without the AI model: "send it to Ahmed, no no,
+  I mean Omar" becomes "send it to Omar", "the red one, actually no, the blue one" keeps the blue
+  one, "so I think we should, no no, what I want to say is..." drops the abandoned beginning, and
+  "how to start, how to start, I mean" collapses. Names, days, Arabic words ("لا لا قصدي", "أقصد",
+  "لا بل") and phrases that repeat the opening words are handled; numbers keep their own rules.
+  Before this, a correction only worked for numbers or when the AI model answered in time, so long
+  dictations often kept both versions.
+- Careful by design: nothing is deleted when the phrase is part of the sentence ("I mean business",
+  "no problem", "sorry for the delay"), when you are talking about the feature itself ("say no no I
+  mean this"), inside quotes, or when the new part points back at earlier words ("send it to
+  Omar"). Then both versions stay, or the AI model decides.
+- "Scratch that" no longer deletes when it is only mentioned, and never erases a whole unpunctuated
+  dictation (at most the last 12 words).
+- The AI model is told to drop the abandoned words only when the speaker clearly takes them back,
+  and to keep everything when unsure.
+
+## 0.3.2
 
 - Fixed English and Arabic in one dictation. The language is now taken from the audio, part by part
   (the recording is cut at pauses), instead of being fixed by the setting or by one guess for the
