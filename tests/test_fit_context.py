@@ -75,7 +75,10 @@ class FakeEditor:
         if not shift:
             self.anchor = self.caret
 
-    def copy(self):
+    def window_changed(self):
+        return False
+
+    def copy(self, timeout=None):
         self.copies += 1
         lo, hi = sorted((self.anchor, self.caret))
         if lo == hi:
@@ -126,7 +129,7 @@ def test_unsafe_or_unknown_apps_are_not_probed(process):
 
 def test_a_failure_while_probing_gives_no_context_instead_of_an_error():
     class Broken(FakeEditor):
-        def copy(self):
+        def copy(self, timeout=None):
             raise OSError("clipboard busy")
 
     assert read_around("chrome.exe", Broken("text", 2)) is None
@@ -172,3 +175,34 @@ def test_live_probe_in_a_real_text_box(monkeypatch):
         assert clipboard.get_text() == "keep me" and sentinel is not None
     finally:
         root.destroy()
+
+
+class SlowEditor(FakeEditor):
+    """An app that is slow to fill the clipboard: the first copy after each move shows nothing."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.waited = False
+
+    def copy(self, timeout=None):
+        if timeout is None and not self.waited and self.anchor != self.caret:
+            self.waited = True
+            self.copies += 1
+            return None  # a selection exists, but it has not reached the clipboard yet
+        self.waited = False
+        return super().copy(timeout)
+
+
+def test_a_slow_app_never_leaves_a_selection_behind():
+    editor = SlowEditor("We said that and then left", 13)
+    got = read_around("chrome.exe", editor)
+    assert got is not None and (got.before, got.after) == ("at ", "an")
+    assert editor.anchor == editor.caret == 13  # nothing selected, so the paste replaces nothing
+
+
+def test_focus_moving_to_another_window_abandons_the_probe():
+    class Wanders(FakeEditor):
+        def window_changed(self):
+            return self.copies >= 2  # the focus moves after the first look
+
+    assert read_around("chrome.exe", Wanders("some text here", 5)) is None

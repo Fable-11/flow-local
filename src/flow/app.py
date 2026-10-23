@@ -9,6 +9,7 @@ import signal
 import sys
 import threading
 import time
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -22,6 +23,7 @@ from flow.cleanup.rules import RuleOptions
 from flow.command import CommandError, run_command
 from flow.config import MEMORY_MODES, Settings
 from flow.fixlast import suggest_fix
+from flow.guards import describe_failure, paste_target_changed
 from flow.hardware import detect as detect_hardware
 from flow.hardware import recommend
 from flow.hotkeys.bindings import (
@@ -56,7 +58,6 @@ from flow.stt.engine import ModelNotDownloaded, SttEngine, choose_model
 from flow.stt.models import is_model_cached
 from flow.ui.flowbar import FlowBarGroup
 from flow.ui.hub.context import HubContext
-from flow.ui.hub.window import HubWindow
 from flow.ui.theme import apply_theme, follow_system_theme
 from flow.ui.tray import Tray
 
@@ -152,7 +153,7 @@ class Worker:
         emit("loading", "Loading model")
         if clipboard.recover_journal():
             log.info("recovered clipboard from an interrupted paste")
-        self.engine = SttEngine(choose_model(s.stt_model))
+        self.engine = SttEngine(choose_model(s.stt_model, s.stt_precision))
         self._load_model(allow_download=False)
         self.llm = OllamaClient(model=s.llm_model)
         self.pipeline = CleanupPipeline(self.llm)
@@ -298,7 +299,7 @@ class Worker:
             self.recorder.close()
             self.recorder.device = s.mic_device
             self._open_mic()
-        wanted = choose_model(s.stt_model)
+        wanted = choose_model(s.stt_model, s.stt_precision)
         if wanted != self.engine.choice:
             if is_model_cached(wanted.name):
                 self.engine.choice = wanted
@@ -326,7 +327,8 @@ class Worker:
         elif action == FIX_LAST:
             self._fix_last()
         elif action == DOWNLOAD:
-            self.engine.choice = choose_model(self.get_settings().stt_model)
+            s = self.get_settings()
+            self.engine.choice = choose_model(s.stt_model, s.stt_precision)
             self._load_model(allow_download=True)
         elif action.startswith(CAPTURE_PREFIX):
             name = action[len(CAPTURE_PREFIX) :]
@@ -390,9 +392,14 @@ class Worker:
                 return
             self._touch()
             self._prewarm_llm()
+            mute = sounds.cue_duration("start") + 0.05 if sounds.enabled else 0.0
             try:
-                mute = sounds.cue_duration("start") + 0.05 if sounds.enabled else 0.0
-                self.recorder.start(mute_s=mute)
+                try:
+                    self.recorder.start(mute_s=mute)
+                except Exception:  # noqa: BLE001
+                    log.warning("recording did not start; reopening the microphone once")
+                    self.recorder.close()
+                    self.recorder.start(mute_s=mute)
             except Exception:  # noqa: BLE001
                 log.exception("could not start recording")
                 emit("error", "No microphone found")
@@ -506,6 +513,15 @@ class Worker:
                 out = fit_to_context(out, around.before, around.after)
             else:
                 out = self.spacing.prefix_for(app.hwnd, out) + out
+            if out and paste_target_changed(
+                app.process, get_active_app().process, Path(sys.executable).name
+            ):
+                clipboard.set_text(out, hide_from_history=False)  # leave it ready to paste
+                if result.text:
+                    self.last_dictation = result.text
+                    self._record(text, result.text, app.process, result.kind, lang, len(audio) / 16000)
+                emit("error", "Window changed: text copied, press Ctrl+V")
+                return
             if out:
                 paste_text(out, method_for(app.process))
                 self.spacing.record(app.hwnd, out)
@@ -523,9 +539,9 @@ class Worker:
                 self.bridge.wordSuggested.emit(result.suggestion)
             self._touch()
             memory.trim_working_set()
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             log.exception("dictation failed")
-            emit("error", "Something went wrong")
+            emit("error", describe_failure(e))
 
 
 # -- single instance ------------------------------------------------------------------------
@@ -549,10 +565,12 @@ class LazyHub:
 
     def __init__(self, ctx: HubContext) -> None:
         self.ctx = ctx
-        self._hub: HubWindow | None = None
+        self._hub = None  # a HubWindow, imported when it is first opened
 
     def show_page(self, name: str = "Home") -> None:
         if self._hub is None:
+            from flow.ui.hub.window import HubWindow  # loaded now, not at start-up
+
             self._hub = HubWindow(self.ctx, delete_on_close=True)
             self._hub.closed.connect(self._forget)
         self._hub.show_page(name)

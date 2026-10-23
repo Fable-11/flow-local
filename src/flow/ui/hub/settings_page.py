@@ -25,6 +25,7 @@ from flow.config import (
     LANGUAGES,
     LEARN_MODES,
     MEMORY_MODES,
+    PRECISIONS,
     SOUND_STYLES,
     STT_MODELS,
     binding_conflicts,
@@ -371,6 +372,21 @@ class SettingsPage(QWidget):
         )
         self.memory_mode.currentIndexChanged.connect(
             lambda _i: self.ctx.update(memory_mode=self.memory_mode.currentData())
+        )
+        self.precision = self._combo_width(QComboBox(), 300)
+        for key, label in PRECISIONS.items():
+            self.precision.addItem(label, key)
+        self.precision.setCurrentIndex(
+            max(0, self.precision.findData(self.ctx.settings.stt_precision))
+        )
+        self.precision.currentIndexChanged.connect(
+            lambda _i: self.ctx.update(stt_precision=self.precision.currentData())
+        )
+        panel.add_row(
+            "Speech model precision",
+            "The smaller setting uses about 1 GB less video memory with the same speed. "
+            "Choose the most exact one if you see wrong words and have memory to spare.",
+            self.precision,
         )
         panel.add_row(
             "Memory use",

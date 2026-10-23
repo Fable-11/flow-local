@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from flow.insert import clipboard, winapi
+from flow.insert.context import get_active_app
 from flow.insert.fit import has_arabic
 from flow.insert.selection import LINE_COPY_APPS, TERMINALS
 
@@ -35,6 +36,7 @@ SAFE_APPS = frozenset(
 BEFORE_CHARS = 3
 AFTER_CHARS = 2
 COPY_TIMEOUT_S = 0.15
+SLOW_COPY_TIMEOUT_S = 0.5  # second look when the first copy brought nothing
 
 
 @dataclass(frozen=True)
@@ -48,8 +50,12 @@ class ProbeIO(Protocol):
 
     def press(self, vks: list[int]) -> None: ...
 
-    def copy(self) -> str | None:
+    def copy(self, timeout: float | None = None) -> str | None:
         """Ctrl+C and return what was copied, or None when nothing was."""
+        ...
+
+    def window_changed(self) -> bool:
+        """True when another window has taken the keyboard focus since the session began."""
         ...
 
     def session(self):  # noqa: ANN201 - context manager that restores the clipboard
@@ -59,10 +65,12 @@ class ProbeIO(Protocol):
 class SystemIO:
     def __init__(self) -> None:
         self._holder = None
+        self._hwnd = 0
 
     @contextmanager
     def session(self) -> Iterator[None]:
         winapi.wait_modifiers_released()  # our synthetic keys must not mix with a held Ctrl
+        self._hwnd = get_active_app().hwnd
         with clipboard.preserved_clipboard() as holder:
             self._holder = holder
             yield
@@ -71,12 +79,15 @@ class SystemIO:
     def press(self, vks: list[int]) -> None:
         winapi.chord(vks)
 
-    def copy(self) -> str | None:
+    def window_changed(self) -> bool:
+        return bool(self._hwnd) and get_active_app().hwnd != self._hwnd
+
+    def copy(self, timeout: float | None = None) -> str | None:
         marker = f"​__flow_{uuid.uuid4().hex}__"
         holder = self._holder
         holder.seq = clipboard.set_text(marker)
         winapi.chord([winapi.VK_CONTROL, winapi.VK_C])
-        deadline = time.monotonic() + COPY_TIMEOUT_S
+        deadline = time.monotonic() + (COPY_TIMEOUT_S if timeout is None else timeout)
         while time.monotonic() < deadline:
             if clipboard.sequence_number() != holder.seq:
                 time.sleep(0.02)  # let the app finish writing all formats
@@ -118,12 +129,20 @@ def _probe(io: ProbeIO, extend: int, retrace: int, count: int) -> str:
     The cursor is restored by shrinking the selection with the opposite arrow, one step per
     character that was selected. Unlike pressing a plain arrow key this behaves the same in every
     app (some collapse a selection, some move one character).
+
+    A copy that brings nothing is checked a second time, more patiently: a slow app can have a
+    selection that simply has not reached the clipboard yet, and leaving it selected would make the
+    paste replace the user's own text.
     """
     for _ in range(count):
         io.press([winapi.VK_SHIFT, extend])
     got = io.copy()
     if got is None:
+        got = io.copy(SLOW_COPY_TIMEOUT_S)
+    if got is None:
         return ""  # at the edge of the text: nothing was selected, nothing to undo
+    if io.window_changed():
+        raise RuntimeError("focus moved to another window while reading the cursor")
     for _ in range(len(got.replace("\r\n", "\n"))):
         io.press([winapi.VK_SHIFT, retrace])
     return got

@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from flow.guards import label_language
 from flow.stt.models import is_model_cached
 
 # Privacy: never phone home from the model hub library.
@@ -80,10 +81,44 @@ def cuda_available() -> bool:
         return False
 
 
-def choose_model(preferred: str = "auto") -> ModelChoice:
+SMALL_GPU_MB = 8300  # an 8 GB card: the speech model and the AI model must share it
+_gpu_mb: int | None = None
+
+
+def gpu_memory_mb() -> int | None:
+    """Total video memory of the first NVIDIA GPU in MiB, or None when it cannot be read."""
+    global _gpu_mb
+    if _gpu_mb is None:
+        try:
+            import subprocess
+
+            out = subprocess.run(
+                ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=5, check=False,
+            ).stdout
+            _gpu_mb = int(out.strip().splitlines()[0])
+        except Exception:  # noqa: BLE001 - no driver tools: fall back to the accurate setting
+            _gpu_mb = 0
+    return _gpu_mb or None
+
+
+def choose_compute_type(precision: str = "auto", vram_mb: int | None = None) -> str:
+    """float16 is the most exact; int8_float16 halves the speech model's video memory.
+
+    "auto" uses the smaller one on cards with about 8 GB or less, where the AI model is also
+    loaded, and the exact one on bigger cards.
+    """
+    if precision == "accurate":
+        return "float16"
+    if precision == "small":
+        return "int8_float16"
+    return "int8_float16" if vram_mb and vram_mb <= SMALL_GPU_MB else "float16"
+
+
+def choose_model(preferred: str = "auto", precision: str = "auto") -> ModelChoice:
     if cuda_available():
         name = "large-v3-turbo" if preferred == "auto" else preferred
-        return ModelChoice(name, "cuda", "float16")
+        return ModelChoice(name, "cuda", choose_compute_type(precision, gpu_memory_mb()))
     return ModelChoice("small" if preferred == "auto" else preferred, "cpu", "int8")
 
 
@@ -280,7 +315,7 @@ class SttEngine:
                 lean = plan[0][0]
                 whole = self._decode(audio, lean, initial_prompt, quiet, sum(shares) / len(shares))
                 if not whole.invented and whole.text:
-                    return whole.text, lean, whole.share
+                    return whole.text, label_language(whole.text, lean), whole.share
         parts: list[str] = []
         weight: dict[str, int] = {}
         share = 1.0
@@ -291,7 +326,8 @@ class SttEngine:
                 weight[done.language] = weight.get(done.language, 0) + (b - a)
                 share = done.share
         main = max(weight, key=weight.get) if weight else (preferred or "en")
-        return " ".join(parts).strip(), main, share
+        joined = " ".join(parts).strip()
+        return joined, label_language(joined, main), share
 
     def _speech_chunks(self, audio: np.ndarray) -> list[tuple[int, int]]:
         whole = [(0, len(audio))]

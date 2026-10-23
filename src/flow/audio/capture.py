@@ -124,6 +124,8 @@ class Recorder:
     def start(self, mute_s: float = 0.0) -> None:
         """Begin recording. ``mute_s``: blank this many seconds right after the start, so a
         start beep played through the speakers is not transcribed."""
+        if self._stream is not None and not getattr(self._stream, "active", True):
+            self.close()  # the device went away (unplugged, changed): open a fresh stream
         self.open()
         with self._lock:
             heard = np.concatenate(self._preroll) if self._preroll else np.zeros(0, np.float32)

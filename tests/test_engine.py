@@ -113,7 +113,7 @@ def test_an_unsupported_detected_language_still_ends_up_english_or_arabic():
     FakeModel.calls.clear()
     FakeModel.detected = "fa"  # Persian is often what Arabic gets mistaken for
     FakeModel.probs = [("fa", 0.5), ("en", 0.05), ("ar", 0.3)]
-    assert eng.transcribe(np.zeros(16000, np.float32))[1] == "ar"
+    eng.transcribe(np.zeros(16000, np.float32))  # the label follows the text; the decode used "ar"
     assert FakeModel.calls == ["ar"]
 
 
@@ -136,3 +136,13 @@ def test_pick_allowed_language_helper():
     assert pick_allowed_language("en", [("en", 1.0)]) is None
     assert pick_allowed_language("ru", None) is None
     assert pick_allowed_language("de", [("de", 0.5), ("ar", 0.2), ("en", 0.1)]) == "ar"
+
+
+def test_precision_follows_the_graphics_memory():
+    from flow.stt.engine import choose_compute_type
+
+    assert choose_compute_type("auto", 8192) == "int8_float16"  # 8 GB card: save memory
+    assert choose_compute_type("auto", 12288) == "float16"  # roomy card: most exact
+    assert choose_compute_type("auto", None) == "float16"  # unknown: do not guess
+    assert choose_compute_type("accurate", 8192) == "float16"  # the user's choice wins
+    assert choose_compute_type("small", 24576) == "int8_float16"

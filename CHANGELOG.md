@@ -3,7 +3,24 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.3.3 (not released yet)
+## 0.4.0 (not released yet)
+
+- About 1.2 GB less video memory. On graphics cards with 8 GB or less (where the speech model and
+  the AI model share the card) the speech model now runs in a smaller form: measured 1.1 GB instead
+  of 2.3 GB, as fast or slightly faster, same text on the test clips. Bigger cards keep the most
+  exact form. Settings > Memory > Speech model precision lets you choose either one yourself.
+- Safer cursor reading: if an app is slow to answer, a selection could be left behind and the
+  paste would replace your own text. The probe now looks twice and gives up if the window changes.
+- If the keyboard focus moves to a different program while a dictation is processed, the text is
+  copied (press Ctrl+V) instead of being pasted into an app you did not dictate into.
+- If the microphone was unplugged or changed, recording reopens it once by itself.
+- Clearer messages: "Clipboard busy", "Out of memory", "Took too long" instead of "Something went
+  wrong".
+- The language shown in the history now follows the text that was written, so English text is no
+  longer labelled Arabic.
+- The Hub window loads when it is first opened, which makes start-up lighter.
+
+## 0.3.3
 
 - Self-corrections are resolved by rules that work without the AI model: "send it to Ahmed, no no,
   I mean Omar" becomes "send it to Omar", "the red one, actually no, the blue one" keeps the blue

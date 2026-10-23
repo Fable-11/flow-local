@@ -36,6 +36,11 @@ MEMORY_MODES = {
     "balanced": ("Balanced (unload after 10 idle minutes)", 10, 5),
     "low": ("Lowest memory (unload after 2 idle minutes)", 2, 2),
 }
+PRECISIONS = {
+    "auto": "Automatic (smaller on 8 GB cards)",
+    "accurate": "Most exact (uses more video memory)",
+    "small": "Smaller (about 1 GB less video memory)",
+}
 STYLE_NAMES = {
     "default": "Default",
     "formal": "Formal",
@@ -82,6 +87,7 @@ class Settings:
     sound_style: str = "soft"  # key of SOUND_STYLES
     bar_screens: str = "all"  # all, primary, active, or "screen:<monitor name>"
     memory_mode: str = "balanced"  # see MEMORY_MODES
+    stt_precision: str = "auto"  # key of PRECISIONS
     first_run_done: bool = False
 
     def language_code(self) -> str | None:
@@ -121,6 +127,8 @@ def settings_from_dict(data: dict) -> Settings:
         s.bar_screens = "all"
     if s.memory_mode not in MEMORY_MODES:
         s.memory_mode = "balanced"
+    if s.stt_precision not in PRECISIONS:
+        s.stt_precision = "auto"
     # keep only known, parseable bindings; fill gaps with defaults
     clean = dict(DEFAULT_BINDINGS)
     for name, chord in s.bindings.items():
