@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from flow import memory, sounds
 from flow.audio import enhance
 from flow.audio.capture import Recorder
-from flow.cleanup.llm import OllamaClient
+from flow.cleanup.llm import OllamaClient, local_host
 from flow.cleanup.pipeline import CleanupPipeline
 from flow.cleanup.rules import RuleOptions
 from flow.command import CommandError, run_command
@@ -155,7 +155,7 @@ class Worker:
             log.info("recovered clipboard from an interrupted paste")
         self.engine = SttEngine(choose_model(s.stt_model, s.stt_precision))
         self._load_model(allow_download=False)
-        self.llm = OllamaClient(model=s.llm_model)
+        self.llm = OllamaClient(model=s.llm_model, host=local_host(s.llm_port))
         self.pipeline = CleanupPipeline(self.llm)
         self.processor = TextProcessor(self.pipeline, self.dictionary, self.snippets)
         self.processor.gate = SuggestionGate(SettingsRepo(self.dictionary.db))
@@ -292,6 +292,7 @@ class Worker:
         self.pipeline.use_llm = s.llm_enabled
         self.pipeline.rules = RuleOptions(spoken_commands=s.spoken_commands, press_enter=s.press_enter)
         self.llm.model = s.llm_model
+        self.llm.host = local_host(s.llm_port)
         self.llm.keep_alive = f"{MEMORY_MODES[s.memory_mode][2]}m"
         self.llm._active_model = None  # re-resolve against installed models
         self.recorder.gain = WHISPER_GAIN if s.whisper_mode else 1.0

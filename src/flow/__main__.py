@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from pathlib import Path
 
 from flow import __version__, cli_store
 
@@ -74,6 +75,13 @@ def cmd_bench(args: argparse.Namespace) -> int:
     return 0
 
 
+def shorten_home(path) -> str:  # noqa: ANN001
+    """Show a path with the home folder as ~, so a pasted report does not reveal the user name."""
+    text = str(path)
+    home = str(Path.home())
+    return "~" + text[len(home):] if text.lower().startswith(home.lower()) else text
+
+
 def cmd_doctor() -> int:
     """Print what Flow Local sees on this machine, to help diagnose problems."""
     import platform
@@ -110,8 +118,8 @@ def cmd_doctor() -> int:
     print(f"Memory: {hw.ram_gb:.0f} GB. Recommended cleanup model: {rec.llm_model}")
     for note in rec.notes:
         print(f"  note: {note}")
-    print(f"Database: {default_db_path()}")
-    print(f"Log file: {log_path()}")
+    print(f"Database: {shorten_home(default_db_path())}")
+    print(f"Log file: {shorten_home(log_path())}")
     return 0
 
 

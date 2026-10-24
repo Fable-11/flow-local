@@ -64,6 +64,7 @@ class Settings:
     cleanup_enabled: bool = True
     llm_enabled: bool = True
     llm_model: str = DEFAULT_MODEL
+    llm_port: int = 11434  # where your own Ollama listens (this computer only)
     style: str = "default"
     custom_instructions: str = ""
     spoken_commands: bool = True

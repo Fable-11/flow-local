@@ -16,7 +16,8 @@ installed by `pip`, and models are downloaded by the user on first use.
 | [NumPy](https://numpy.org) | BSD-3-Clause | audio maths |
 | [sounddevice](https://github.com/spatialaudio/python-sounddevice) | MIT | microphone capture (includes PortAudio, MIT) |
 | [PySide6 / Qt for Python](https://doc.qt.io/qtforpython-6/) | LGPL-3.0 (or GPL) | the user interface |
-| NVIDIA cuBLAS, cuDNN, NVRTC (`nvidia-*-cu12`) | NVIDIA proprietary license | GPU acceleration; installed by pip only if you choose the `stt` extra on an NVIDIA machine |
+| NVIDIA cuBLAS, cuDNN (`nvidia-*-cu12`) | NVIDIA proprietary license | GPU acceleration; installed by pip only if you choose the `cuda` extra on an NVIDIA machine |
+| FFmpeg libraries inside the PyAV wheels | LGPL-2.1+ | audio decoding; shipped by the PyAV package, not by this project |
 
 Development only: pytest, pytest-qt, ruff (MIT); PyInstaller (GPL-2.0 with a special exception
 that allows bundling any program, including proprietary ones).
@@ -29,9 +30,11 @@ Qt libraries inside it stay under the LGPL-3.0: include its license text
 (<https://download.qt.io/>) with the build.
 
 ### About the NVIDIA libraries
-A CUDA-enabled packaged build contains NVIDIA's cuBLAS/cuDNN DLLs. Redistribution is governed by
-NVIDIA's license terms for those libraries. If you publish a build, read them first, or publish
-the CPU-only build (`scripts\build.ps1 -NoCuda`) or just the source.
+This repository does not contain or redistribute any NVIDIA library: `pip` downloads them to your
+own computer for your own use when you choose the `cuda` extra. A packaged build made with
+`scripts\build.ps1` (without `-NoCuda`) would copy those DLLs, and sharing it is governed by
+NVIDIA's license terms. If you publish a build, make the CPU-only one (`-NoCuda`) or publish just
+the source.
 
 ## Models (downloaded on first use, never stored in this repo)
 
@@ -40,7 +43,7 @@ the CPU-only build (`scripts\build.ps1 -NoCuda`) or just the source.
 | OpenAI Whisper (via the `large-v3-turbo`, `small`, ... conversions used by faster-whisper) | MIT | speech recognition |
 | Silero VAD | MIT | detects speech vs silence; bundled in faster-whisper |
 | Qwen2.5-7B-Instruct (default cleanup model, through Ollama) | Apache-2.0 | |
-| Qwen2.5-3B (fallback cleanup model, through Ollama) | Qwen Research License | check its terms, which may restrict commercial use |
+| Qwen2.5-3B (fallback cleanup model, through Ollama) | Qwen Research License | non-commercial use only; choose another model for commercial use |
 
 Licenses can change between model versions: always read the license shown on each model's page
 (<https://ollama.com/library/qwen2.5> and the Hugging Face model cards) before commercial use.

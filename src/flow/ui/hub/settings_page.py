@@ -404,6 +404,15 @@ class SettingsPage(QWidget):
         self.llm = self._check(
             panel, "Use the local AI model", "llm_enabled", "Smarter cleanup. Falls back to rules if it is off."
         )
+        self.llm_port = QSpinBox()
+        self.llm_port.setRange(1024, 65535)
+        self.llm_port.setValue(self.ctx.settings.llm_port)
+        self.llm_port.valueChanged.connect(lambda v: self.ctx.update(llm_port=int(v)))
+        panel.add_row(
+            "Ollama port",
+            "Only needed if your own Ollama listens on another port. It always stays on this computer.",
+            self.llm_port,
+        )
         self.commands = self._check(
             panel, "Spoken commands", "spoken_commands", 'Say "new line" or "new paragraph" to format.'
         )

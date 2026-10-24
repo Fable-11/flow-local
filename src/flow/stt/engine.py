@@ -81,6 +81,7 @@ def cuda_available() -> bool:
         return False
 
 
+TINY_GPU_MB = 3500  # below this the big speech model does not fit next to anything else
 SMALL_GPU_MB = 8300  # an 8 GB card: the speech model and the AI model must share it
 _gpu_mb: int | None = None
 
@@ -117,8 +118,11 @@ def choose_compute_type(precision: str = "auto", vram_mb: int | None = None) -> 
 
 def choose_model(preferred: str = "auto", precision: str = "auto") -> ModelChoice:
     if cuda_available():
+        vram = gpu_memory_mb()
         name = "large-v3-turbo" if preferred == "auto" else preferred
-        return ModelChoice(name, "cuda", choose_compute_type(precision, gpu_memory_mb()))
+        if preferred == "auto" and vram and vram < TINY_GPU_MB:
+            name = "small"  # only on a confirmed reading: an unknown reading changes nothing
+        return ModelChoice(name, "cuda", choose_compute_type(precision, vram))
     return ModelChoice("small" if preferred == "auto" else preferred, "cpu", "int8")
 
 

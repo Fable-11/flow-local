@@ -18,3 +18,13 @@ models/
 dist/
 build/
 *.ico
+
+# editors, keys, coverage
+*.pem
+*.key
+.vscode/
+.idea/
+*.pyo
+.coverage
+htmlcov/
+.claude/

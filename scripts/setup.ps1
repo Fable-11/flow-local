@@ -3,12 +3,14 @@
 #   .\scripts\setup.ps1                  install everything, pull the cleanup model if Ollama is present
 #   .\scripts\setup.ps1 -NoCuda          skip the NVIDIA GPU libraries (detected automatically otherwise)
 #   .\scripts\setup.ps1 -SkipOllama      do not touch Ollama
-#   .\scripts\setup.ps1 -DownloadModel   also download the speech model now (one-time, about 1.6 GB, uses the internet)
+#   .\scripts\setup.ps1 -DownloadModel   download the speech model now without asking (one-time, uses the internet)
+#   .\scripts\setup.ps1 -NoModel         do not download (or ask about) the speech model
 #   .\scripts\setup.ps1 -Check           install nothing, only report what this computer has
 param(
     [switch]$NoCuda,
     [switch]$SkipOllama,
     [switch]$DownloadModel,
+    [switch]$NoModel,
     [switch]$Check
 )
 
@@ -74,9 +76,30 @@ if (-not $SkipOllama) {
     }
 }
 
-if ($DownloadModel -and -not $Check) {
-    Step "Speech model (one-time download, uses the internet)"
-    & $venv -c "from flow.stt.engine import SttEngine; SttEngine().load(allow_download=True); print('speech model ready')"
+if (-not $Check -and -not $NoModel) {
+    $want = [bool]$DownloadModel
+    $cached = (& $venv -c "from flow.stt.engine import choose_model; from flow.stt.models import is_model_cached; print(is_model_cached(choose_model().name))").Trim()
+    if ($cached -ne "True") {
+        $name = (& $venv -c "from flow.stt.engine import choose_model; print(choose_model().name)").Trim()
+        $size = if ($name -like "large*") { "about 1.6 GB" } else { "about 0.5 GB" }
+        Step "Speech model ($name, $size, one-time download, uses the internet)"
+        if (-not $want -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+            $answer = Read-Host "Download it now? [Y/n]"
+            $want = ($answer -eq "" -or $answer -match "^[yY]")
+        }
+        if ($want) {
+            try {
+                & $venv -c "from flow.stt.engine import SttEngine; SttEngine().load(allow_download=True); print('speech model ready')"
+                if ($LASTEXITCODE -ne 0) { throw "download did not finish" }
+            }
+            catch {
+                Note "The download did not finish ($_). Nothing is half-installed: run this script again,"
+                Note "or open Settings > Models in the app and press 'Download now'."
+            }
+        }
+        else { Note "Skipped. Open Settings > Models in the app and press 'Download now' when you are ready." }
+    }
+    else { Note "speech model already downloaded" }
 }
 
 Step "What this computer looks like"

@@ -1,6 +1,8 @@
 # Flow Local
 
-Free, fully offline voice dictation for Windows. Hold a shortcut, speak in Arabic, English or a mix of both, and clean, formatted text appears at your cursor in any app: browsers, VS Code, chat boxes, Word, WhatsApp Web.
+Free, fully offline voice dictation for Windows. Hold a shortcut, speak in English, Arabic or a mix of both, and clean, formatted text appears at your cursor in most apps: browsers, chat boxes, Word, editors.
+
+**Languages:** English and Arabic (and mixes of the two) are supported today. Other languages are not: their speech would be written as one of those two. A configurable language pair is on the roadmap below.
 
 It follows the workflow of cloud dictation tools, but everything runs on your computer:
 
@@ -29,7 +31,7 @@ To make an old version the current one again without losing history, use `git re
 
 ## Privacy
 
-Nothing leaves your computer. The only network use is the **one-time speech model download**, which happens only when you press *Download now* in Settings > Models (or run `transcribe`/`bench` from the command line). Ollama is contacted only on `127.0.0.1`. The app refuses to talk to any other LLM host. Checked while running: no open network connections.
+Nothing leaves your computer. The only network use is the **one-time speech model download**, which happens only when you press *Download now* in Settings > Models (or run `transcribe`/`bench` from the command line). Ollama is contacted only on `127.0.0.1`, and the app refuses to talk to any other LLM address (a test covers this). Recordings are never written to disk.
 
 ## Setup
 
@@ -42,6 +44,8 @@ git clone https://github.com/Fable-11/flow-local.git
 cd flow-local
 .\scripts\setup.ps1
 ```
+
+Not using git? Download the ZIP from GitHub, unpack it, install [Python 3.12](https://www.python.org/downloads/) first, then run `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1` from the unpacked folder (this runs only that script, it does not change your computer's policy).
 
 The script creates a virtual environment, installs everything (including the NVIDIA GPU libraries only if it finds an NVIDIA card), pulls the right cleanup model if Ollama is installed, and prints a report of your computer. Useful switches: `-NoCuda`, `-SkipOllama`, `-DownloadModel` (also fetch the speech model now), `-Check` (install nothing, just report).
 
@@ -60,11 +64,19 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[cuda]"    # drop [cuda] if you have no NVIDIA graphics card
 ```
 
-Optional but recommended: [Ollama](https://ollama.com) for smarter cleanup and Command Mode. Without it, cleanup uses built-in rules and Command Mode is unavailable.
+Optional but recommended: [Ollama](https://ollama.com) for smarter cleanup and Command Mode. The app starts and dictation works without it:
+
+| | With Ollama | Without Ollama |
+|---|---|---|
+| Punctuation, capitals, fillers, spoken commands | yes | yes (built-in rules) |
+| Self-corrections ("no no, I mean ...") | yes | yes (rules for clear cases) |
+| Links, symbols, dictionary, languages | yes | yes |
+| Smarter wording clean-up and tone per app | yes | no |
+| Command Mode (edit selected text by voice) | yes | no |
 
 ```powershell
 winget install Ollama.Ollama
-ollama pull qwen2.5:7b-instruct      # use qwen2.5:3b on a laptop without an NVIDIA card
+ollama pull qwen2.5:7b-instruct      # on a laptop without an NVIDIA card use qwen2.5:3b (non-commercial licence)
 ```
 
 Check your setup at any time with `.\.venv\Scripts\python.exe -m flow doctor`.
@@ -75,9 +87,11 @@ Flow Local looks at your hardware on first run and picks the defaults. You can c
 
 | Your computer | Speech model | Cleanup model | Typical delay per dictation |
 |---|---|---|---|
-| Desktop or laptop with an NVIDIA GPU (8 GB or more) | `large-v3-turbo` on the GPU | `qwen2.5:7b-instruct` | under 1.5 s |
-| No NVIDIA GPU (most thin laptops) | `small` on the CPU | `qwen2.5:3b` | about 3 to 4 s |
-| 8 GB of memory or less | as above | `qwen2.5:3b` | models unload after 2 idle minutes |
+| NVIDIA GPU with 5 GB or more of video memory | `large-v3-turbo` on the GPU (a smaller form on cards of 8 GB or less) | `qwen2.5:7b-instruct` | about 1 to 2 s on one mid-range card |
+| NVIDIA GPU with 3.5 to 5 GB | `large-v3-turbo` | `qwen2.5:3b` | not measured |
+| NVIDIA GPU under 3.5 GB | `small` | `qwen2.5:3b` | not measured |
+| No NVIDIA GPU (AMD and Intel graphics are not used by the speech engine) | `small` on the CPU | `qwen2.5:3b` | a few seconds, not measured |
+| Under 12 GB of memory | as above | `qwen2.5:3b` | models unload after 2 idle minutes |
 
 Everything is stored per computer (settings, dictionary, history), so a laptop starts with its own fresh copy. Move your dictionary between computers with **Dictionary > Export / Import**.
 
@@ -106,6 +120,8 @@ At login the app starts quietly in the tray with no window.
 This produces `dist\FlowLocal\FlowLocal.exe` (windowless) and `dist\FlowLocal\flow-cli.exe` (console, for `doctor`, `clean`, `dict`, ...). Copy the whole folder anywhere.
 
 ## Shortcuts
+
+Windows uses Ctrl+Win+Left/Right to switch virtual desktops, which can briefly start and cancel a dictation. Change the shortcuts in Settings if that bothers you.
 
 All shortcuts can be changed in Settings > Shortcuts (type them or press **Record**). Duplicates are rejected with a warning. Mouse buttons work too (`mouse_x1`, `mouse_x2`, `mouse_middle`).
 
@@ -151,7 +167,7 @@ The Flow Bar at the bottom of the screen shows what is happening: a waveform whi
 
 **Memory.** Settings > Memory: *Balanced* (default) unloads the speech model after 10 idle minutes and the AI model after 5; *Lowest memory* after 2; *Fastest* keeps both loaded. A model is reloaded the moment you press the shortcut, while you are still speaking, so you rarely notice (the first dictation after a long break can take about 2 seconds longer). While idle, Flow Local also hands unused memory back to Windows, which takes Task Manager's figure from several hundred MB to a few MB. Ollama's own `llama-server` process shows up separately in Task Manager.
 
-**Speaking far from the microphone.** Settings > Microphone > *Automatic volume boost* (on by default) measures each recording and, when it is quiet, filters low rumble, reduces background noise a little and raises the level (up to 100x) before transcribing. Speech down to about 40 dB below a normal level works if the room is quiet; the Flow Bar tells you when a recording is too quiet or the microphone looks muted. Run `flow mic` to test your microphone at the distance you sit: it prints the level, the noise, and what Flow Local will do.
+**Speaking far from the microphone.** Settings > Microphone > *Automatic volume boost* (on by default) measures each recording and, when it is quiet, filters low rumble, reduces background noise a little and raises the level (up to 100x) before transcribing. Speech down to about 40 dB below a normal level can work if the room is quiet; the Flow Bar tells you when a recording is too quiet or the microphone looks muted. Run `flow mic` to test your microphone at the distance you sit: it prints the level, the noise, and what Flow Local will do.
 
 **Whisper mode.** Settings > Microphone > Whisper mode boosts quiet speech.
 
@@ -208,7 +224,7 @@ Details worth knowing:
 - **Hotkeys** use a ctypes low-level hook so modifier-only holds like Ctrl+Win work, and a dummy key stops the Start menu from opening when Win is released. The hook ignores synthetic keys, so Flow Local's own paste never triggers itself.
 - **Insertion** saves your clipboard, pastes with Ctrl+V, then restores it (only if nothing else changed it meanwhile). A journal on disk restores the clipboard even if the app crashes mid-paste. Pastes are hidden from Windows clipboard history.
 - **The LLM never gets to answer you.** The transcript is wrapped in tags with strict rules, and the output is validated. If it looks like an answer, a translation or invented text, the rule-based result is used instead.
-- **Fast:** models stay loaded, the LLM is kept warm (`keep_alive`), and the GPU gets a warm-up decode at start-up. Measured on a mid-range NVIDIA GPU: model load 2 s, cleanup about 0.4 s, idle CPU about 0.7% of one core from source (about 1.7% for the packaged build).
+- **Fast:** models stay loaded, the LLM is kept warm (`keep_alive`), and the GPU gets a warm-up decode at start-up. Measured once on a mid-range NVIDIA GPU (your numbers will differ): model load 2 s, cleanup about 0.4 s, idle CPU about 0.7% of one core from source (about 1.7% for the packaged build).
 - **Threads:** Qt UI on the main thread, hotkeys on the hook thread, audio on the audio callback thread, dictation on a worker thread.
 
 See `DECISIONS.md` for every design decision and why it was made.
@@ -226,6 +242,12 @@ Layout: `src/flow/{audio,stt,cleanup,hotkeys,insert,store,ui}`, tests in `tests/
 
 CLI helpers: `flow transcribe`, `flow bench`, `flow doctor`, `flow clean "text"`, `flow dict ...`, `flow snippet ...`.
 
+## Roadmap
+
+- **Any language pair**: choose a main language and an optional second one (today English plus Arabic is fixed). This touches the language decision, so it needs recordings in other languages to test against.
+- **AI model by graphics memory** for large cards (a bigger model when there is room).
+- A prebuilt CPU-only download once the licence notices for a packaged build are complete.
+
 ## License
 
 Flow Local is released under the [MIT License](LICENSE). It builds on open-source software and open models, listed with their licenses in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The AI models are **not** part of this repository: they are downloaded separately and have their own licenses (the 3B Qwen model's terms may restrict commercial use). If you publish a packaged build, read the notes about Qt (LGPL) and the NVIDIA libraries first.
@@ -236,4 +258,4 @@ Flow Local is released under the [MIT License](LICENSE). It builds on open-sourc
 - Windows blocks input from a normal program into elevated (Administrator) windows.
 - Command Mode needs Ollama and is unavailable in terminals. In editors that copy the whole line when nothing is selected, make sure text is selected.
 - "Ctrl+Win+<other key>" shortcuts of Windows (such as switching virtual desktops) briefly start a dictation that is cancelled immediately.
-- Chrome, VS Code and terminal insertion are supported through standard paste; only the Tk test window was verified automatically.
+- Insertion uses the standard paste in every app. It is checked automatically only against a test window; in real apps it has been used by hand, so report anything that misbehaves.

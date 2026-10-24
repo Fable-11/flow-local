@@ -20,6 +20,17 @@ class LlmError(RuntimeError):
     """Any failure talking to the LLM (down, timeout, bad response)."""
 
 
+DEFAULT_PORT = 11434
+
+
+def local_host(port: int | None) -> str:
+    """The address of the user's own Ollama server. Only the port can be chosen, so the privacy
+    promise (nothing leaves this computer) cannot be broken by a setting."""
+    if not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535:
+        port = DEFAULT_PORT
+    return f"http://127.0.0.1:{port}"
+
+
 class OllamaClient:
     def __init__(
         self,

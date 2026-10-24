@@ -3,7 +3,27 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.4.0 (not released yet)
+## 0.5.0 (not released yet)
+
+Preparation for a public release.
+
+- Settings > Cleanup > Ollama port, for people whose own Ollama listens elsewhere. Only the port
+  can change: the address stays on this computer.
+- Defaults that fit other computers: a graphics card with under 3.5 GB gets the smaller speech
+  model, one under 5 GB gets the lighter cleanup model. Only a card that was actually read counts,
+  an unreadable one changes nothing.
+- The lighter cleanup model (qwen2.5:3b) is marked as non-commercial wherever it is recommended.
+- `python -m flow doctor` shortens your home folder to `~`, so the report can be pasted without
+  your Windows user name.
+- `scripts/setup.ps1` asks before downloading the speech model (with its size) and carries on if
+  the download fails. `-NoModel` skips it.
+- `scripts/stop_flow.ps1` only stops this project's own processes, and the interpreter they start.
+- README: supported languages stated plainly, a with/without Ollama table, hardware table that
+  matches the code, no claims that nothing checks. New SECURITY.md, CONTRIBUTING.md, issue and pull
+  request templates, a manual CI workflow. Corrected licence notices.
+- Test sentences are all invented, none are taken from real dictations.
+
+## 0.4.0
 
 - About 1.2 GB less video memory. On graphics cards with 8 GB or less (where the speech model and
   the AI model share the card) the speech model now runs in a smaller form: measured 1.1 GB instead
