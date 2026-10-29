@@ -3,7 +3,24 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.6.0 (not released yet)
+## 0.7.0 (not released yet)
+
+- **The AI cleanup says what state it is in.** Home shows one line: ready, resting, switched off in
+  Settings, Ollama not running, or the model not installed, each with what to do. Before, an Ollama
+  that was not running meant plain-rules cleanup with no sign of it. If Ollama is installed but not
+  running there is a **Start Ollama** button. Nothing starts Ollama by itself: it uses graphics
+  memory, so it only starts when you press the button.
+- **Recovery tools in the tray menu.** *Copy last dictation* (for when it was pasted somewhere
+  unexpected or not at all) and *Restore other sounds now*. A new command
+  `python -m flow restore-sounds` does the second one from outside the app, and the Stop Flow Local
+  shortcut runs it, so force-stopping the app during a recording cannot leave programs muted.
+- **`python -m flow selftest`**: a silent check that the microphone, data folder, clipboard,
+  cleanup rules, volume mixer, Ollama and the speech model all work. The test voice goes to a file
+  (nothing is played aloud), your clipboard is put back, and the report contains no user name,
+  device names or dictations, so it is safe to paste into a bug report. `--hardware` adds the
+  speech model and device.
+
+## 0.6.0
 
 - **Other sounds go quiet while you dictate.** Music, videos and calls keep playing but are muted
   (or lowered) while you speak, so they are not mixed into what you say, and they come back the

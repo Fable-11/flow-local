@@ -20,5 +20,11 @@ $children = $all | Where-Object {
 }
 $packaged = $all | Where-Object { $_.ProcessId -ne $self -and $_.Name -eq 'FlowLocal.exe' }
 
-@($launchers) + @($children) + @($packaged) |
-    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+$stopped = @($launchers) + @($children) + @($packaged)
+$stopped | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
+# A forced stop during a recording would leave other programs muted: put their sound back.
+if ($stopped.Count -gt 0) {
+    $python = Join-Path $Root '.venv\Scripts\python.exe'
+    if (Test-Path $python) { & $python -m flow restore-sounds *> $null }
+}

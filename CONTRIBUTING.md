@@ -35,5 +35,5 @@ number, a fix the last one. To go back to an older version: `git tag`, then `git
 
 ## Bug reports
 
-Run `python -m flow doctor` and paste its output (it lists your microphones; delete that part if you prefer). Say what you said and what came out, but do not
+Run `python -m flow selftest` and paste its output (it holds no user name or device names). Say what you said and what came out, but do not
 paste anything private.

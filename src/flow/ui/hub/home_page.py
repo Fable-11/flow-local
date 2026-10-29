@@ -28,6 +28,7 @@ from flow.ui.hub.widgets import (
     Panel,
     StatusDot,
     button,
+    caption,
     page_header,
     scrollable,
     section_title,
@@ -71,6 +72,17 @@ class HomePage(QWidget):
         status_row.addWidget(self.dot, 0, Qt.AlignmentFlag.AlignTop)
         status_row.addWidget(self.status, 1)
         status_panel.add(row)
+        ai_row = QWidget()
+        ai_lay = QHBoxLayout(ai_row)
+        ai_lay.setContentsMargins(24, 0, 0, 0)
+        ai_lay.setSpacing(12)
+        self.ai_label = caption("")
+        self.ai_label.setWordWrap(True)
+        self.ai_button = button("Start Ollama")
+        self.ai_button.clicked.connect(self._start_ollama)
+        ai_lay.addWidget(self.ai_label, 1)
+        ai_lay.addWidget(self.ai_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        status_panel.add(ai_row)
         lay.addWidget(status_panel)
 
         # -- shortcuts ---------------------------------------------------------------------
@@ -130,6 +142,8 @@ class HomePage(QWidget):
         lay.addLayout(actions)
 
         ctx.statusChanged.connect(self._set_status)
+        ctx.aiStatusChanged.connect(self._set_ai_status)
+        self._set_ai_status(*ctx.ai_status)
         ctx.settingsChanged.connect(self._settings_changed)
         ctx.historyChanged.connect(self.refresh)
         self._set_status(ctx.status)
@@ -143,6 +157,16 @@ class HomePage(QWidget):
         if text:
             self.status.setText(text)
             self.dot.set_state(status_state(text))
+
+    def _set_ai_status(self, _code: str, text: str, can_start: bool) -> None:
+        self.ai_label.setText(text)
+        self.ai_label.setVisible(bool(text))
+        self.ai_button.setVisible(can_start)
+        self.ai_button.setEnabled(True)
+
+    def _start_ollama(self) -> None:
+        self.ai_button.setEnabled(False)  # one press; the status line updates by itself
+        self.ctx.startOllamaRequested.emit()
 
     def _settings_changed(self, _settings) -> None:  # noqa: ANN001
         self.refresh_shortcuts()

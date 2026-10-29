@@ -79,7 +79,7 @@ winget install Ollama.Ollama
 ollama pull qwen2.5:7b-instruct      # on a laptop without an NVIDIA card use qwen2.5:3b (non-commercial licence)
 ```
 
-Check your setup at any time with `.\.venv\Scripts\python.exe -m flow doctor`.
+Check your setup at any time with `.\.venv\Scripts\python.exe -m flow selftest`: a silent test of the microphone, clipboard, cleanup, volume mixer, Ollama and the speech model. Its report is safe to paste into a bug report (it contains no user name, device names or dictations). `-m flow doctor` lists what the computer has.
 
 ### Which computer am I?
 
@@ -160,6 +160,10 @@ The Flow Bar at the bottom of the screen shows what is happening: a waveform whi
 **Style.** Pick Default, Formal, Casual, Excited or Very casual, add your own instructions, and set per-app rules (for example Casual in WhatsApp). Chat apps default to casual and email apps to formal.
 
 **Notes, History, Insights.** The Notes page is a scratch pad you can dictate into. Home lists recent dictations (copy, re-run cleanup, delete). Insights shows words dictated, speed, time saved and your streak. History can be turned off or auto-deleted after N days in Settings > Privacy.
+
+**The AI line on Home.** Home says whether the AI cleanup is ready, resting, off because Ollama is not running, or missing its model, and what to do. If Ollama is installed but not running there is a *Start Ollama* button (it is never started on its own). Without the AI, dictation still works with the built-in cleanup.
+
+**The tray menu** also has *Copy last dictation* and *Restore other sounds now* for when something does not land where you expected.
 
 **Other sounds while you dictate.** Music, videos and calls keep playing but go quiet while you speak, so they are not mixed into your words, and come back when you stop (Settings > Microphone > Other sounds: mute, lower, or leave alone). It uses the Windows volume mixer per program and puts everything back even if the app crashes.
 

@@ -15,6 +15,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from flow import memory, sounds
+from flow.aistatus import ai_status, ollama_exe, start_ollama
 from flow.audio import enhance
 from flow.audio.capture import Recorder
 from flow.audio.ducking import AudioDucker, DuckRunner
@@ -94,6 +95,7 @@ class Bridge(QObject):
     historyChanged = Signal()
     fixSuggested = Signal(str, str)
     wordSuggested = Signal(str)
+    aiStatus = Signal(str, str, bool)
 
 
 class Worker:
@@ -118,6 +120,7 @@ class Worker:
         )
         self.duck_runner = DuckRunner(self.ducker)
         atexit.register(self.ducker.stop)  # never leave other programs muted
+        self._last_ai_status = None
         self.last_dictation = ""  # final text of the last insertion, for "Fix last word"
         self.recording = False
         self.handsfree = False
@@ -232,7 +235,41 @@ class Worker:
         self.last_activity = time.monotonic()
         self._trimmed = False
 
+    def check_ai(self) -> None:
+        """Tell the Home page what state the AI cleanup is in. Cheap: three local requests, only
+        when the answer may have changed (start-up, settings, every idle tick), never while
+        dictating."""
+        s = self.get_settings()
+        enabled = s.llm_enabled and s.cleanup_enabled
+        reachable = model = loaded = False
+        model = None
+        if enabled:
+            reachable = self.llm.available()
+            if reachable:
+                model = self.llm.resolve_model()
+                loaded = model is not None and self.llm.is_loaded()
+        status = ai_status(
+            enabled=enabled, reachable=reachable, model=model, wanted=s.llm_model,
+            loaded=loaded, installed=ollama_exe() is not None,
+        )
+        if status != self._last_ai_status:
+            self._last_ai_status = status
+            self.bridge.aiStatus.emit(status.code, status.text, status.can_start)
+
+    def start_ollama_now(self) -> None:
+        """The user pressed Start Ollama. Start it, then look again once it has had time to wake."""
+        if start_ollama():
+            threading.Timer(4.0, self.check_ai).start()
+        else:
+            self._last_ai_status = None
+            self.check_ai()
+
     def _idle_tick(self) -> None:
+        if not self.recording:
+            try:
+                self.check_ai()
+            except Exception:  # noqa: BLE001 - a status line must never be able to stop the worker
+                log.debug("AI status check failed", exc_info=True)
         if self.recording or self.paused or self._reload_thread is not None:
             return
         idle = time.monotonic() - self.last_activity
@@ -653,6 +690,22 @@ class DictionaryPrompt:
                 self.gate.answered(False)
 
 
+def copy_last_dictation(holder: dict) -> None:
+    """Tray: put the last dictation on the clipboard, for when it was pasted somewhere unexpected
+    or not at all."""
+    worker = holder.get("worker")
+    text = getattr(worker, "last_dictation", "") if worker else ""
+    if text:
+        QApplication.clipboard().setText(text)
+
+
+def restore_sounds(holder: dict) -> None:
+    """Tray: give the other programs their sound back right now, whatever state things are in."""
+    worker = holder.get("worker")
+    if worker is not None:
+        threading.Thread(target=lambda: (worker.ducker.stop(), worker.ducker.recover()), daemon=True).start()
+
+
 def run_app(background: bool = False) -> int:
     setup_logging()
     qt_app = QApplication(sys.argv)
@@ -714,6 +767,12 @@ def run_app(background: bool = False) -> int:
     tray = Tray(qt_app.quit, hub.show_page)
     ipc_server = start_ipc_server(lambda: hub.show_page("Home"))  # noqa: F841 - keep referenced
     tray.pause_toggled.connect(lambda paused: events.put(PAUSE if paused else RESUME))
+    tray.copy_last_requested.connect(lambda: copy_last_dictation(holder))
+    bridge.aiStatus.connect(ctx.aiStatusChanged)
+    ctx.startOllamaRequested.connect(
+        lambda: threading.Thread(target=holder["worker"].start_ollama_now, daemon=True).start()
+    )
+    tray.restore_sounds_requested.connect(lambda: restore_sounds(holder))
 
     bar.set_state("loading", "Loading model")
     if not background or not ctx.settings.first_run_done:

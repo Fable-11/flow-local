@@ -103,6 +103,20 @@ def gpu_memory_mb() -> int | None:
     return _gpu_mb or None
 
 
+def gpu_free_mb() -> int | None:
+    """Video memory not in use right now in MiB, or None when it cannot be read."""
+    try:
+        import subprocess
+
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5, check=False,
+        ).stdout
+        return int(out.strip().splitlines()[0])
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def choose_compute_type(precision: str = "auto", vram_mb: int | None = None) -> str:
     """float16 is the most exact; int8_float16 halves the speech model's video memory.
 

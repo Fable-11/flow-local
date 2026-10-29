@@ -23,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     b = sub.add_parser("bench", help="measure transcription latency")
     b.add_argument("--file", help="WAV file; default 10 s of mic audio")
     sub.add_parser("doctor", help="report hardware and environment status")
+    sub.add_parser("restore-sounds", help="unmute programs left quiet after a crash")
+    st = sub.add_parser("selftest", help="check that everything works on this computer")
+    st.add_argument(
+        "--hardware", action="store_true", help="include the speech model and device in the report"
+    )
     c = sub.add_parser("clean", help="run text through the cleanup pipeline")
     c.add_argument("text")
     c.add_argument("--no-llm", action="store_true")
@@ -147,6 +152,25 @@ def cmd_mic(seconds: float) -> int:
     return 0
 
 
+def cmd_selftest(include_hardware: bool) -> int:
+    """Silent end-to-end check; the report is safe to paste into a bug report."""
+    from flow import selftest
+
+    results = selftest.run(selftest.all_checks(include_hardware))
+    print(selftest.report(results, __version__))
+    return selftest.exit_code(results)
+
+
+def cmd_restore_sounds() -> int:
+    """Replay the crash record: put back anything Flow Local quietened and did not restore."""
+    from flow.audio.ducking import AudioDucker
+    from flow.store.db import default_db_path
+
+    count = AudioDucker("mute", journal=default_db_path().parent / "ducking.json").recover()
+    print(f"restored {count} program(s)" if count else "nothing to restore")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):  # Arabic output must not crash cp1252 consoles
         if hasattr(stream, "reconfigure"):
@@ -158,6 +182,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_bench(args)
     if args.cmd == "doctor":
         return cmd_doctor()
+    if args.cmd == "restore-sounds":
+        return cmd_restore_sounds()
+    if args.cmd == "selftest":
+        return cmd_selftest(args.hardware)
     if args.cmd == "mic":
         return cmd_mic(args.seconds)
     if args.cmd == "sound":

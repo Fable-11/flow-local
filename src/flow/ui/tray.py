@@ -31,6 +31,8 @@ def make_icon(size: int = 64) -> QIcon:
 
 class Tray(QObject):
     pause_toggled = Signal(bool)  # True = paused
+    copy_last_requested = Signal()
+    restore_sounds_requested = Signal()
 
     def __init__(self, on_quit: Callable[[], None], show_page: Callable[[str], None]) -> None:
         super().__init__()
@@ -41,6 +43,10 @@ class Tray(QObject):
         self.open_action.triggered.connect(lambda: show_page("Home"))
         self.settings_action = QAction("Settings")
         self.settings_action.triggered.connect(lambda: show_page("Settings"))
+        self.copy_action = QAction("Copy last dictation")
+        self.copy_action.triggered.connect(self.copy_last_requested)
+        self.sounds_action = QAction("Restore other sounds now")
+        self.sounds_action.triggered.connect(self.restore_sounds_requested)
         self.pause_action = QAction("Pause dictation")
         self.pause_action.setCheckable(True)
         self.pause_action.toggled.connect(self._paused)
@@ -48,6 +54,9 @@ class Tray(QObject):
         self.quit_action.triggered.connect(on_quit)
         for a in (self.open_action, self.settings_action, self.pause_action):
             self.menu.addAction(a)
+        self.menu.addSeparator()
+        self.menu.addAction(self.copy_action)
+        self.menu.addAction(self.sounds_action)
         self.menu.addSeparator()
         self.menu.addAction(self.quit_action)
         self.icon.setContextMenu(self.menu)
