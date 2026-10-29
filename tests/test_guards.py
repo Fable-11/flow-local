@@ -4,23 +4,7 @@ import numpy as np
 import pytest
 
 from flow.audio.capture import Recorder
-from flow.guards import describe_failure, label_language, paste_target_changed
-
-
-# -- where the text goes -----------------------------------------------------------------------
-@pytest.mark.parametrize(
-    ("before", "now", "own", "changed"),
-    [
-        ("chrome.exe", "chrome.exe", "pythonw.exe", False),  # same program: tabs are fine
-        ("chrome.exe", "slack.exe", "pythonw.exe", True),  # moved to another program
-        ("chrome.exe", "pythonw.exe", "pythonw.exe", False),  # Flow Local's own window
-        ("CHROME.EXE", "chrome.exe", "pythonw.exe", False),  # case does not matter
-        ("", "slack.exe", "pythonw.exe", False),  # unknown before: never block
-        ("chrome.exe", "", "pythonw.exe", False),  # unknown now: never block
-    ],
-)
-def test_paste_target_changed(before, now, own, changed):
-    assert paste_target_changed(before, now, own) is changed
+from flow.guards import describe_failure, label_language
 
 
 # -- messages ----------------------------------------------------------------------------------

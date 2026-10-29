@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from flow.config import (
     BAR_SCREENS,
     BINDING_LABELS,
+    DUCK_MODES,
     LANGUAGES,
     LEARN_MODES,
     MEMORY_MODES,
@@ -195,6 +196,19 @@ class SettingsPage(QWidget):
             "Automatic volume boost",
             "auto_gain",
             "Lifts quiet speech, for example when you sit far from the microphone.",
+        )
+        self.duck_mode = self._combo_width(QComboBox(), 300)
+        for key, label in DUCK_MODES.items():
+            self.duck_mode.addItem(label, key)
+        self.duck_mode.setCurrentIndex(max(0, self.duck_mode.findData(self.ctx.settings.duck_mode)))
+        self.duck_mode.currentIndexChanged.connect(
+            lambda _i: self.ctx.update(duck_mode=self.duck_mode.currentData())
+        )
+        panel.add_row(
+            "Other sounds",
+            "Music, videos and calls keep playing but you cannot hear them while you dictate, so "
+            "they are not mixed into what you say. They come back as soon as you stop.",
+            self.duck_mode,
         )
         self.whisper_mode = self._check(
             panel, "Whisper mode", "whisper_mode", "Boosts quiet speech so you can dictate softly."

@@ -161,6 +161,10 @@ The Flow Bar at the bottom of the screen shows what is happening: a waveform whi
 
 **Notes, History, Insights.** The Notes page is a scratch pad you can dictate into. Home lists recent dictations (copy, re-run cleanup, delete). Insights shows words dictated, speed, time saved and your streak. History can be turned off or auto-deleted after N days in Settings > Privacy.
 
+**Other sounds while you dictate.** Music, videos and calls keep playing but go quiet while you speak, so they are not mixed into your words, and come back when you stop (Settings > Microphone > Other sounds: mute, lower, or leave alone). It uses the Windows volume mixer per program and puts everything back even if the app crashes.
+
+**Where the text goes.** The text is pasted into whichever window has the focus when it is ready. If you click another window or screen while it works (a search box, a chat), it lands there.
+
 **Sounds.** A soft rising "bloop" plays when recording starts and a falling one when it stops (a gentle low two-note fall on errors). Settings > Display and sound lets you pick the style (*Soft bloop*, *Short pop*, or *Windows speech chime*, which reads the speech-recognition sounds that ship with Windows and softens them) and the volume; changing the style plays a preview. From the command line: `flow sound start --style pop --volume 40`. Turn them off or change the volume in Settings > Display and sound. The start tone is blanked out of the recording, so the speakers' beep is never transcribed.
 
 **Several monitors.** The Flow Bar appears on every screen by default. Settings > Display and sound can limit it to the screen where your mouse pointer is. Plugging in or removing a monitor is handled live.

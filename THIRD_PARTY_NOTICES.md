@@ -17,6 +17,8 @@ installed by `pip`, and models are downloaded by the user on first use.
 | [sounddevice](https://github.com/spatialaudio/python-sounddevice) | MIT | microphone capture (includes PortAudio, MIT) |
 | [PySide6 / Qt for Python](https://doc.qt.io/qtforpython-6/) | LGPL-3.0 (or GPL) | the user interface |
 | NVIDIA cuBLAS, cuDNN (`nvidia-*-cu12`) | NVIDIA proprietary license | GPU acceleration; installed by pip only if you choose the `cuda` extra on an NVIDIA machine |
+| [pycaw](https://github.com/AndreMiras/pycaw), [comtypes](https://github.com/enthought/comtypes) | MIT | per-program volume control (muting other sounds while you dictate) |
+| [psutil](https://github.com/giampaolo/psutil) | BSD-3-Clause | program names for that control (installed with pycaw) |
 | FFmpeg libraries inside the PyAV wheels | LGPL-2.1+ | audio decoding; shipped by the PyAV package, not by this project |
 
 Development only: pytest, pytest-qt, ruff (MIT); PyInstaller (GPL-2.0 with a special exception

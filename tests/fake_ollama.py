@@ -12,6 +12,7 @@ class FakeServer:
     def __init__(self, reply="Hello world.", delay=0.0, models=("qwen2.5:7b-instruct",)):
         outer = self
         self.reply, self.delay, self.models = reply, delay, list(models)
+        self.loaded = list(models)  # what /api/ps reports as in memory
         self.last_payload = None
 
         class H(BaseHTTPRequestHandler):
@@ -28,6 +29,8 @@ class FakeServer:
             def do_GET(self):
                 if self.path == "/api/version":
                     self._send({"version": "x"})
+                elif self.path == "/api/ps":
+                    self._send({"models": [{"name": m} for m in outer.loaded]})
                 else:
                     self._send({"models": [{"name": m} for m in outer.models]})
 

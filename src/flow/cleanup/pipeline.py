@@ -123,6 +123,9 @@ class CleanupPipeline:
             return CleanResult(fallback, raw, False, "short utterance", enter)
         if not self.llm.available():
             return CleanResult(fallback, raw, False, "llm unavailable", enter)
+        if not self.llm.is_loaded():  # a load takes 3-10 s and would end in the rules anyway
+            self.llm.warm_in_background()
+            return CleanResult(fallback, raw, False, "llm cold", enter)
         try:
             out = _strip_wrappers(self.llm.chat(cleanup_messages(pre, ctx)))
         except LlmError as e:

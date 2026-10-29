@@ -41,6 +41,11 @@ PRECISIONS = {
     "accurate": "Most exact (uses more video memory)",
     "small": "Smaller (about 1 GB less video memory)",
 }
+DUCK_MODES = {
+    "mute": "Mute them while I dictate",
+    "lower": "Lower them while I dictate",
+    "off": "Leave them alone",
+}
 STYLE_NAMES = {
     "default": "Default",
     "formal": "Formal",
@@ -74,6 +79,7 @@ class Settings:
     learn_mode: str = "auto"  # LEARN_MODES: add words silently, ask first, or never
     press_enter: bool = False  # experimental
     whisper_mode: bool = False
+    duck_mode: str = "mute"  # what other programs do while recording (see DUCK_MODES)
     auto_gain: bool = True  # boost quiet recordings (speaking far from the microphone)
     mic_device: str | None = None  # device name; None = system default
     bindings: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_BINDINGS))
@@ -126,6 +132,8 @@ def settings_from_dict(data: dict) -> Settings:
         s.sound_style = "soft"
     if s.bar_screens not in BAR_SCREENS and not s.bar_screens.startswith("screen:"):
         s.bar_screens = "all"
+    if s.duck_mode not in DUCK_MODES:
+        s.duck_mode = "mute"
     if s.memory_mode not in MEMORY_MODES:
         s.memory_mode = "balanced"
     if s.stt_precision not in PRECISIONS:

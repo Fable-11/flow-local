@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -37,7 +38,7 @@ class OllamaClient:
         model: str = DEFAULT_MODEL,
         fallback: str = FALLBACK_MODEL,
         host: str = "http://127.0.0.1:11434",
-        timeout_s: float = 8.0,
+        timeout_s: float = 5.0,
         keep_alive: str = "30m",
     ) -> None:
         if urlparse(host).hostname not in LOCAL_HOSTS:
@@ -49,6 +50,8 @@ class OllamaClient:
         self.keep_alive = keep_alive
         self._active_model: str | None = None
         self._down_until = 0.0
+        self._warm_lock = threading.Lock()
+        self._warming = False
         self.last_used = 0.0  # monotonic time of the last chat request
 
     # -- plumbing -----------------------------------------------------------------------
@@ -74,6 +77,38 @@ class OllamaClient:
         except LlmError:
             self._down_until = time.monotonic() + 10
             return False
+
+    def is_loaded(self) -> bool:
+        """True if Ollama has the cleanup model in memory right now.
+
+        A model that is not loaded needs 3-10 seconds to load, so a dictation must not wait for it.
+        If Ollama cannot say (an old version), assume it is loaded and keep the old behaviour.
+        """
+        model = self.resolve_model()
+        if model is None:
+            return False
+        try:
+            running = self._request("/api/ps", None, 0.7).get("models", [])
+        except LlmError:
+            return True
+        names = {m.get("name", "") for m in running} | {m.get("model", "") for m in running}
+        return model in names or (":" not in model and f"{model}:latest" in names)
+
+    def warm_in_background(self) -> None:
+        """Load the model without making anyone wait. Does nothing if a load is already running."""
+        with self._warm_lock:
+            if self._warming:
+                return
+            self._warming = True
+
+        def run() -> None:
+            try:
+                self.warm_up()
+            finally:
+                with self._warm_lock:
+                    self._warming = False
+
+        threading.Thread(target=run, daemon=True).start()
 
     def installed_models(self) -> list[str]:
         try:

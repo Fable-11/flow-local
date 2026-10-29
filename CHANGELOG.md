@@ -3,7 +3,27 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.5.0 (not released yet)
+## 0.6.0 (not released yet)
+
+- **Other sounds go quiet while you dictate.** Music, videos and calls keep playing but are muted
+  (or lowered) while you speak, so they are not mixed into what you say, and they come back the
+  moment you stop. Settings > Microphone > Other sounds: mute, lower, or leave them alone. It works
+  per program through the Windows volume mixer, never touches Flow Local's own sounds or anything
+  you had already muted, and does not override a change you make in the mixer meanwhile. A small
+  record on disk means that even after a crash the next start puts everything back. A quick tap, or
+  the shortcut turning into hands-free mode, never makes anything flicker.
+- **No more 8-second waits.** When the AI model was not in memory, the first cleanup waited for it
+  to load, gave up after 8 seconds and used the plain rules anyway: a long wait for nothing. Now a
+  model that is not loaded is skipped at once (0.04 s instead of 8 s, measured), the plain rules
+  clean the text, and the model loads in the background for the next dictation. The AI model is also
+  woken by asking Ollama whether it is really loaded, instead of guessing from a timer, and the
+  wait for a loaded model is 5 seconds at most.
+- **The text goes where you are when it is ready.** If you move to another window or screen while
+  the dictation is processed (a search box, a chat), it is pasted there, with the paste method and
+  spacing of that window. (0.4.0 copied it to the clipboard instead, which was in the way.)
+- The log line of each dictation now shows where the time went (speech, cleanup, insert).
+
+## 0.5.0
 
 Preparation for a public release.
 

@@ -234,3 +234,101 @@ def test_hands_free_through_the_real_hook(monkeypatch):
         assert len(rig.finished) == 3
     finally:
         listener.stop()
+
+
+# -- other programs are quietened while recording and ALWAYS put back ---------------------------
+class FakeDucker:
+    def __init__(self):
+        self.events = []
+
+    def start(self):
+        self.events.append("start")
+
+    def stop(self):
+        self.events.append("stop")
+
+    def recover(self):
+        self.events.append("recover")
+
+
+def settle(ducker, expected, timeout=2.0):
+    import time
+
+    end = time.time() + timeout
+    while len(ducker.events) < expected and time.time() < end:
+        time.sleep(0.01)
+    time.sleep(0.05)  # let any extra, unexpected call show up
+    return ducker.events
+
+
+@pytest.fixture
+def ducked(rig):
+    from flow.audio.ducking import DuckRunner
+
+    rig.w.ducker = FakeDucker()
+    rig.w.duck_runner = DuckRunner(rig.w.ducker, delay=0.03)
+    return rig
+
+
+def hold(seconds=0.12):
+    import time
+
+    time.sleep(seconds)  # a real recording lasts longer than the moment a tap does
+
+
+def test_a_tap_never_quietens_anything(ducked):
+    ducked.press("ctrl", "win")
+    ducked.release("win", "ctrl")  # released at once: no recording worth quietening for
+    assert settle(ducked.w.ducker, 1, timeout=0.3) == []
+
+
+def test_push_to_talk_quietens_then_restores(ducked):
+    ducked.press("ctrl", "win")
+    hold()
+    ducked.clock.advance(1.0)
+    ducked.release("win", "ctrl")
+    assert settle(ducked.w.ducker, 2) == ["start", "stop"]
+
+
+def test_escape_restores_the_sound_too(ducked):
+    ducked.press("ctrl", "win")
+    hold()
+    ducked.press("esc")
+    ducked.release("esc", "win", "ctrl")
+    assert settle(ducked.w.ducker, 2) == ["start", "stop"]
+
+
+def test_hands_free_stays_quiet_until_you_stop(ducked):
+    ducked.press("ctrl", "win", "space")
+    ducked.release("space", "win", "ctrl")
+    # Ctrl+Win starts a recording and Space turns it into hands-free: stop and start within
+    # milliseconds. The other programs must be quietened once, with no flicker.
+    assert settle(ducked.w.ducker, 1) == ["start"]
+    ducked.clock.advance(5.0)
+    ducked.press("ctrl", "win", "space")
+    ducked.release("space", "win", "ctrl")
+    assert settle(ducked.w.ducker, 2) == ["start", "stop"]
+
+
+def test_a_recording_that_cannot_start_never_quietens_anything(ducked):
+    def broken(mute_s=0.0):
+        raise OSError("no microphone")
+
+    ducked.w.recorder.start = broken
+    ducked.w.recorder.close = lambda: None
+    ducked.press("ctrl", "win")
+    ducked.release("win", "ctrl")
+    assert settle(ducked.w.ducker, 1, timeout=0.3) == []
+
+
+def test_every_cancel_path_ends_with_the_sound_back(ducked):
+    for _ in range(3):  # repeated sessions must not leave an unmatched start behind
+        ducked.press("ctrl", "win", "space")
+        ducked.release("space", "win", "ctrl")
+        hold()
+        ducked.press("esc")
+        ducked.release("esc")
+        hold(0.06)
+        ducked.clock.advance(1.0)
+    events = settle(ducked.w.ducker, 6)
+    assert events.count("start") == events.count("stop") == 3

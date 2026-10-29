@@ -8,16 +8,6 @@ _ARABIC = re.compile(r"[؀-ۿ]")
 _LATIN = re.compile(r"[A-Za-z]")
 
 
-def paste_target_changed(before_process: str, now_process: str, own_process: str = "") -> bool:
-    """True when the keyboard focus moved to a different program while the dictation was being
-    processed. Pasting then would put the text into an app the user did not dictate into, so the
-    text is copied for them instead. A move into Flow Local's own windows is not a change."""
-    before, now, own = before_process.lower(), now_process.lower(), own_process.lower()
-    if not before or not now or before == now:
-        return False
-    return now != own
-
-
 def describe_failure(exc: BaseException) -> str:
     """A message that tells the user what to do, instead of 'Something went wrong'."""
     text = str(exc).lower()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import ctypes
 import logging
 import queue
@@ -9,7 +10,6 @@ import signal
 import sys
 import threading
 import time
-from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -17,13 +17,14 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from flow import memory, sounds
 from flow.audio import enhance
 from flow.audio.capture import Recorder
+from flow.audio.ducking import AudioDucker, DuckRunner
 from flow.cleanup.llm import OllamaClient, local_host
 from flow.cleanup.pipeline import CleanupPipeline
 from flow.cleanup.rules import RuleOptions
 from flow.command import CommandError, run_command
 from flow.config import MEMORY_MODES, Settings
 from flow.fixlast import suggest_fix
-from flow.guards import describe_failure, paste_target_changed
+from flow.guards import describe_failure
 from flow.hardware import detect as detect_hardware
 from flow.hardware import recommend
 from flow.hotkeys.bindings import (
@@ -111,6 +112,12 @@ class Worker:
         self.dictionary = dictionary
         self.snippets = snippets
         self.history = history
+        self.ducker = AudioDucker(
+            self.get_settings().duck_mode,
+            journal=default_db_path().parent / "ducking.json",
+        )
+        self.duck_runner = DuckRunner(self.ducker)
+        atexit.register(self.ducker.stop)  # never leave other programs muted
         self.last_dictation = ""  # final text of the last insertion, for "Fix last word"
         self.recording = False
         self.handsfree = False
@@ -127,6 +134,7 @@ class Worker:
 
     # -- lifecycle ----------------------------------------------------------------------
     def run(self) -> None:
+        threading.Thread(target=self.ducker.recover, daemon=True).start()  # undo a crash
         for attempt in range(1, 4):
             try:
                 self._run()
@@ -264,8 +272,19 @@ class Worker:
 
     def _prewarm_llm(self) -> None:
         """Wake the AI model while the user speaks, if Ollama has unloaded it meanwhile."""
-        if self.pipeline.use_llm and time.monotonic() - self.llm.last_used > 45:
-            threading.Thread(target=self.llm.warm_up, daemon=True).start()
+        if self.pipeline.use_llm:
+            threading.Thread(target=self._warm_if_cold, daemon=True).start()
+
+    def _warm_if_cold(self) -> None:
+        if self.llm.available() and not self.llm.is_loaded():
+            self.llm.warm_in_background()
+
+    def _duck(self) -> None:
+        """Quieten other programs while recording, without delaying the recording itself."""
+        self.duck_runner.start()
+
+    def _unduck(self) -> None:
+        self.duck_runner.stop()
 
     def _open_mic(self) -> bool:
         try:
@@ -285,6 +304,7 @@ class Worker:
         self.processor.custom_instructions = s.custom_instructions
         self.processor.cleanup_enabled = s.cleanup_enabled
         self.processor.smart_terms = s.smart_terms
+        self.ducker.mode = s.duck_mode
         self.processor.spoken_symbols = s.spoken_commands
         self.processor.arabic_phrases = s.arabic_phrases
         self.processor.learn_mode = s.learn_mode
@@ -407,6 +427,7 @@ class Worker:
                 self.machine.end_handsfree()
                 return
             sounds.play("start")
+            self._duck()
             self.recording = True
             self.handsfree = action == HANDSFREE_TOGGLE
             self.command_mode = action == COMMAND_START
@@ -414,6 +435,7 @@ class Worker:
         elif stopping:
             time.sleep(TAIL_S)
             audio = self.recorder.stop()
+            self._unduck()  # the music comes back as soon as you stop talking
             sounds.play("stop")
             self.recording = False
             self.machine.end_handsfree()
@@ -425,6 +447,7 @@ class Worker:
                 self._finish(audio)
         elif action in (CANCEL, ABORT) and self.recording:
             self.recorder.stop()
+            self._unduck()
             if action == CANCEL:  # Esc: audible. A silent abort is just a shortcut changing form.
                 sounds.play("stop")
             self.recording = False
@@ -501,39 +524,38 @@ class Worker:
             if not text:
                 emit("error", enhance.quiet_hint(enhance.analyze(raw_audio)))
                 return
+            t_stt = time.perf_counter()
             app = get_active_app()
             result = self.processor.process(text, app.process, app.title)
+            t_clean = time.perf_counter()
             if not result.text and not result.press_enter:
                 emit("idle", "")
                 return
+            # The text goes where the focus is NOW. Processing can take a moment, and the speaker may
+            # have moved to another window or screen meanwhile (a search box, a chat): that is where
+            # they want it, and the paste method, spacing and cursor reading must match that window.
+            target = get_active_app()
             out = result.text
             around = None
             if result.kind == "text" and s.fit_to_text and not result.press_enter:
-                around = read_around(app.process)
+                around = read_around(target.process)
             if around is not None:  # we know what is next to the cursor
                 out = fit_to_context(out, around.before, around.after)
             else:
-                out = self.spacing.prefix_for(app.hwnd, out) + out
-            if out and paste_target_changed(
-                app.process, get_active_app().process, Path(sys.executable).name
-            ):
-                clipboard.set_text(out, hide_from_history=False)  # leave it ready to paste
-                if result.text:
-                    self.last_dictation = result.text
-                    self._record(text, result.text, app.process, result.kind, lang, len(audio) / 16000)
-                emit("error", "Window changed: text copied, press Ctrl+V")
-                return
+                out = self.spacing.prefix_for(target.hwnd, out) + out
             if out:
-                paste_text(out, method_for(app.process))
-                self.spacing.record(app.hwnd, out)
+                paste_text(out, method_for(target.process))
+                self.spacing.record(target.hwnd, out)
             if result.press_enter:
                 winapi.chord([winapi.VK_RETURN])
             if result.text:
                 self.last_dictation = result.text
                 self._record(text, result.text, app.process, result.kind, lang, len(audio) / 16000)
+            now = time.perf_counter()
             log.info(
-                "[%s] raw=%r -> %r (%s, %.2fs, %s)",
-                lang, text, result.text, result.kind, time.perf_counter() - t0, app.process,
+                "[%s] raw=%r -> %r (%s, %.2fs: speech %.2f, cleanup %.2f, insert %.2f, %s)",
+                lang, text, result.text, result.kind, now - t0,
+                t_stt - t0, t_clean - t_stt, now - t_clean, app.process,
             )
             emit("done", "")
             if result.suggestion:
