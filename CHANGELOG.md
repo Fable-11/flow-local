@@ -3,6 +3,12 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.7.2 (not released yet)
+
+- Fixed: the AI cleanup sometimes put words in your mouth: it finished a sentence you had cut off
+  ("I don't" became "I don't have the key") or added new words while rewording. The safety check
+  now rejects those answers and the plain rule-based text is used instead.
+
 ## 0.7.1 (not released yet)
 
 - Fixed: two dictations in the same text ran together ("friendHello"). Two causes. When the app

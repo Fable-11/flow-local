@@ -177,3 +177,31 @@ def test_real_llm_cleanup(real_pipeline, case):
     ratio = difflib.SequenceMatcher(None, result.text, case["expected"]).ratio()
     detail = f"{result.text!r} (llm={result.used_llm}, {result.note}) vs {case['expected']!r}"
     assert ratio >= 0.8, detail
+
+
+def test_a_rewrite_that_adds_new_words_is_rejected():
+    source = "i want the report finished by friday and the budget sheet sent to the team"
+    tidy = "I want the report finished by Friday and the budget sheet sent to the team."
+    assert validate_llm_output(source, tidy) is None
+    invented = (
+        "I want the full report finished by Friday, covering every detail, "
+        "and the budget sheet sent to the team."
+    )
+    assert validate_llm_output(source, invented) == "added words that were not said"
+
+
+def test_a_cut_off_sentence_is_not_finished_by_the_model():
+    source = "we should move the meeting to tuesday because the room is taken and i don't"
+    start = "We should move the meeting to Tuesday because the room is taken, and I don't"
+    assert validate_llm_output(source, start + " have the key.") == (
+        "finished a sentence that was cut off"
+    )
+    assert validate_llm_output(source, start + ".") is None
+
+
+def test_ordinary_tidying_is_still_accepted():
+    source = "the first item was one and the second item cost two dollars each"
+    out = "The first item was 1, and the second item cost 2 dollars each."
+    assert validate_llm_output(source, out) is None
+    assert validate_llm_output("she give me three books and I read them",
+                               "She gave me three books, and I read them.") is None

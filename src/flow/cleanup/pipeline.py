@@ -30,6 +30,14 @@ _CORRECTION_HINT = re.compile(
     r"[اأ]قصد|امسح|تجاهل",
     re.IGNORECASE,
 )
+MAX_INVENTED_WORDS = 3  # a rewrite that adds this many new content words is not a cleanup
+# Small words a tidy-up may add or change without changing what was said.
+_NEUTRAL = frozenset(
+    "a an the is are was were be been am to of in on at and or but so it its this that these "
+    "those i you we he she they me us them as for with do does did have has had will would can "
+    "could should shall may might not also then there their ve re ll d s t m don didn doesn "
+    "isn aren wasn weren won wouldn couldn shouldn".split()
+)
 _WORD = re.compile(r"[\w؀-ۿ]+", re.UNICODE)
 _LINK_TOKEN = re.compile(r"⟦U\d+⟧")
 _AR_LETTER = re.compile(r"[ء-ي]")
@@ -94,7 +102,40 @@ def validate_llm_output(source: str, out: str) -> str | None:
     out_words = _words(out)
     if out_words and sum(w in src for w in out_words) / len(out_words) < 0.5:
         return "content changed (possible answer or hallucination)"
+    if _invented_words(source, out) >= MAX_INVENTED_WORDS:
+        return "added words that were not said"
+    if not _CORRECTION_HINT.search(source) and _completed_ending(source, out):
+        return "finished a sentence that was cut off"
     return None
+
+
+def _stem(word: str) -> str:
+    return word[:4]
+
+
+def _invented_words(source: str, out: str) -> int:
+    """Count content words in ``out`` never said (other forms of a said word are fine)."""
+    said = set(_words(source))
+    stems = {_stem(w) for w in said}
+    return sum(
+        1
+        for w in _words(out)
+        if w not in said
+        and _stem(w) not in stems
+        and w not in _NEUTRAL
+        and not w.isdigit()
+        and len(w) > 1
+    )
+
+
+def _completed_ending(source: str, out: str) -> bool:
+    """True when the model added words after the last thing the speaker said."""
+    src, got = _words(source), _words(out)
+    if len(src) < 4 or not got:
+        return False
+    if src[-1].isdigit() or got[-1].isdigit():
+        return False  # "one" may become "1"
+    return _stem(got[-1]) != _stem(src[-1]) and got[-1] not in set(src)
 
 
 class CleanupPipeline:
