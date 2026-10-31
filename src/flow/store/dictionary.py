@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from flow.store.db import Database
 from flow.store.fuzzy import Target, make_target, replace_similar
-from flow.store.terms import candidate_terms
+from flow.store.terms import COMMON_WORDS, candidate_terms
 
 MAX_LEN = 80
 AUTO_MIN_DICTATIONS = 3  # a term must show up in this many separate dictations to be learned
@@ -129,6 +129,8 @@ class DictionaryStore:
     def _build(self) -> None:
         mapping: dict[str, str] = {}
         for e in self.list():
+            if e.auto and e.written.casefold() in COMMON_WORDS:
+                continue  # a learned "And" must never capitalise every "and"
             mapping[e.written.casefold()] = e.written  # fixes casing of the word itself
             if "-" in e.written:  # Whisper often hears "faster-whisper" as "faster whisper"
                 mapping.setdefault(e.written.replace("-", " ").casefold(), e.written)

@@ -278,3 +278,17 @@ def test_suggest_only_and_off_modes_never_learn_or_prompt(db, mode):
     for _ in range(5):
         assert p.process("we deploy with Kubernetes").suggestion is None
     assert p.dictionary.list() == []
+
+
+def test_a_learned_everyday_word_never_changes_the_case_of_that_word(db):
+    d = DictionaryStore(db)
+    d.add("And", auto=True)
+    d.add("Zorblax", auto=True)
+    assert d.apply_replacements("wash it and dry it")[0] == "wash it and dry it"
+    assert d.apply_replacements("ask zorblax and wait")[0] == "ask Zorblax and wait"
+
+
+def test_everyday_words_are_not_learned_from_mid_sentence_capitals():
+    assert candidate_terms("Can you do that? And then Zorblax. But maybe The plan works") == [
+        "Zorblax"
+    ]

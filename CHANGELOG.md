@@ -3,6 +3,12 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.7.3 (not released yet)
+
+- Fixed: every "and" came out as "And" in the middle of sentences. The self-learning dictionary had
+  learned "And" as a name and then applied it everywhere. Everyday words (and, the, but, so...) are
+  no longer learned, and an already learned entry for one of them is ignored.
+
 ## 0.7.2 (not released yet)
 
 - Fixed: the AI cleanup sometimes put words in your mouth: it finished a sentence you had cut off

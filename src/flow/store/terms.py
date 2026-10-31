@@ -14,6 +14,15 @@ _COMMON_CAPITALISED = {
         "Eid Google Windows"
     ).split()
 }
+# Everyday words that only get a capital at the start of a sentence. A dictionary entry for one of
+# these would capitalise it everywhere.
+COMMON_WORDS = frozenset(
+    "a about after all also an and any are as at be because been before but by can could did do "
+    "does for from had has have he her him his how i if in into is it its just like me more my "
+    "no not now of on one only or other our out she so some than that the their them then there "
+    "these they this to too up us very was we were what when where which who why will with would "
+    "yes you your".split()
+)
 
 
 def candidate_terms(text: str, unique: bool = True) -> list[str]:
@@ -26,7 +35,7 @@ def candidate_terms(text: str, unique: bool = True) -> list[str]:
     seen: set[str] = set()
     for m in WORD.finditer(text):
         w = m.group(0).strip("'-")
-        if len(w) < 3 or w.casefold() in _COMMON_CAPITALISED:
+        if len(w) < 3 or w.casefold() in _COMMON_CAPITALISED or w.casefold() in COMMON_WORDS:
             continue
         if w.endswith("'s"):
             w = w[:-2]
