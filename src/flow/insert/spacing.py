@@ -17,7 +17,7 @@ class SpacingTracker:
     text gets a leading space.
     """
 
-    def __init__(self, window_s: float = 120.0, now: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, window_s: float = 300.0, now: Callable[[], float] = time.monotonic) -> None:
         self.window_s = window_s
         self._now = now
         self._hwnd = 0

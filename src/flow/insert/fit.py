@@ -47,22 +47,25 @@ def _text_continues(after: str) -> tuple[bool, bool]:
 
 def fit_to_context(text: str, before: str, after: str) -> str:
     """Adjust ``text`` for the characters that sit before and after the cursor."""
-    if not text or has_arabic(text) or has_arabic(before) or has_arabic(after):
-        return text  # right-to-left text: arrow keys and punctuation behave differently
+    if not text:
+        return text
+    # Capital letters and full stops follow English rules; with Arabic anywhere near the cursor they
+    # are left alone. The spaces between the old text and the new text are needed in every language.
+    arabic = has_arabic(text) or has_arabic(before) or has_arabic(after)
     before = before.replace("\r\n", "\n").replace("\r", "\n")
     after = after.replace("\r\n", "\n").replace("\r", "\n")
     start = _sentence_start(before)
     continues, next_is_capital = _text_continues(after)
 
     # first letter: only a plain function word is lowered, mid-sentence
-    if not start and text[0].isupper():
+    if not arabic and not start and text[0].isupper():
         m = _FIRST_WORD.match(text)
         if m and m.group(0).lower() in _FUNCTION_WORDS and m.group(0) != "I":
             text = text[0].lower() + text[1:]
 
     # final full stop: drop it when the sentence carries on after the cursor
     stand_alone = start and next_is_capital
-    if continues and not stand_alone and text.rstrip().endswith("."):
+    if not arabic and continues and not stand_alone and text.rstrip().endswith("."):
         text = text.rstrip()[:-1]
 
     # spaces: one before if we sit right after a word, one after if a word follows directly

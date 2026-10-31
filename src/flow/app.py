@@ -578,6 +578,11 @@ class Worker:
                 around = read_around(target.process)
             if around is not None:  # we know what is next to the cursor
                 out = fit_to_context(out, around.before, around.after)
+                if not around.before:
+                    # Nothing could be read before the cursor (a slow page, or an empty field).
+                    # An earlier dictation in this window still tells us what is there, so the
+                    # two never run together.
+                    out = self.spacing.prefix_for(target.hwnd, out) + out
             else:
                 out = self.spacing.prefix_for(target.hwnd, out) + out
             if out:

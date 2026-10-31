@@ -31,6 +31,13 @@ def test_fit_to_context(text, before, after, expected):
     assert fit_to_context(text, before, after) == expected
 
 
+def test_a_space_separates_arabic_from_neighbouring_english_text():
+    assert fit_to_context("مرحبا بكم", "see you", "") == " مرحبا بكم"  # English, then Arabic
+    assert fit_to_context("Hello.", "مرحبا", "") == " Hello."  # Arabic, then English
+    assert fit_to_context("مرحبا", "", "world") == "مرحبا "  # a word follows directly
+    assert fit_to_context("مرحبا", "see you ", "") == "مرحبا"  # already separated
+
+
 def test_arabic_text_and_arabic_neighbours_are_left_alone():
     assert fit_to_context("مرحبا بكم.", "قال ", " ثم") == "مرحبا بكم."
     assert fit_to_context("Hello.", "قال ", " ثم") == "Hello."

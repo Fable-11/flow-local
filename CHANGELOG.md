@@ -3,7 +3,15 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
-## 0.7.0 (not released yet)
+## 0.7.1 (not released yet)
+
+- Fixed: two dictations in the same text ran together ("friendHello"). Two causes. When the app
+  could not read what was before the cursor, it forgot that the first dictation had just put text
+  there and added no space. And a dictation in Arabic next to English text (or the other way round)
+  skipped the space altogether. A space is now added in both cases. The memory of the last dictation
+  in a window also lasts 5 minutes instead of 2.
+
+## 0.7.0
 
 - **The AI cleanup says what state it is in.** Home shows one line: ready, resting, switched off in
   Settings, Ollama not running, or the model not installed, each with what to do. Before, an Ollama
