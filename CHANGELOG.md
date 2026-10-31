@@ -3,6 +3,13 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.7.4 (not released yet)
+
+- Fixed: the end of the previous dictation could be eaten by the next one ("software." became
+  "softwar"). While reading the text around the cursor, one lost key press could leave a character
+  selected, and the paste replaced it. The app now checks that nothing is selected afterwards and
+  collapses the selection if there is.
+
 ## 0.7.3 (not released yet)
 
 - Fixed: every "and" came out as "And" in the middle of sentences. The self-learning dictionary had

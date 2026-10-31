@@ -36,6 +36,7 @@ SAFE_APPS = frozenset(
 BEFORE_CHARS = 3
 AFTER_CHARS = 2
 COPY_TIMEOUT_S = 0.15
+VERIFY_TIMEOUT_S = 0.08  # a selection copies at once; no selection just waits this long
 SLOW_COPY_TIMEOUT_S = 0.5  # second look when the first copy brought nothing
 
 
@@ -145,4 +146,17 @@ def _probe(io: ProbeIO, extend: int, retrace: int, count: int) -> str:
         raise RuntimeError("focus moved to another window while reading the cursor")
     for _ in range(len(got.replace("\r\n", "\n"))):
         io.press([winapi.VK_SHIFT, retrace])
+    _make_sure_nothing_is_selected(io, retrace)
     return got
+
+
+def _make_sure_nothing_is_selected(io: ProbeIO, retrace: int) -> None:
+    """Look again: a lost or late key press can leave characters selected, and the next paste
+    would silently replace them ("softwar" instead of "software."). A plain arrow in the retrace
+    direction collapses a selection back to where the cursor started."""
+    for _ in range(2):
+        if io.copy(VERIFY_TIMEOUT_S) is None:
+            return
+        io.press([retrace])
+    if io.copy(VERIFY_TIMEOUT_S) is not None:
+        raise RuntimeError("could not put the cursor back after reading it")

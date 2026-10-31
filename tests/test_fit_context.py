@@ -213,3 +213,23 @@ def test_focus_moving_to_another_window_abandons_the_probe():
             return self.copies >= 2  # the focus moves after the first look
 
     assert read_around("chrome.exe", Wanders("some text here", 5)) is None
+
+
+class DroppedKey(FakeEditor):
+    """An app that loses one key press (the paste then eats the text left selected)."""
+
+    def __init__(self, lost: int, *a, **kw):
+        super().__init__(*a, **kw)
+        self.lost, self.count = lost, 0
+
+    def press(self, vks):
+        self.count += 1
+        if self.count - 1 != self.lost:
+            super().press(vks)
+
+
+@pytest.mark.parametrize("lost", range(12))
+def test_a_lost_key_never_leaves_text_selected_for_the_paste_to_replace(lost):
+    editor = DroppedKey(lost, "the software. At all", 13)
+    read_around("chrome.exe", editor)
+    assert editor.anchor == editor.caret  # nothing is selected, so the paste replaces nothing
