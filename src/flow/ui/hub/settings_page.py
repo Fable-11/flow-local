@@ -10,6 +10,8 @@ import sys
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
+    QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QScrollArea,
@@ -35,6 +37,7 @@ from flow.hotkeys.bindings import DEFAULT_BINDINGS, format_chord, parse_chord
 from flow.ui.hub.context import HubContext
 from flow.ui.hub.widgets import (
     Panel,
+    SettingRow,
     Toggle,
     button,
     caption,
@@ -57,6 +60,17 @@ class SettingsPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(16)
         outer.addWidget(page_header("Settings", "Changes apply immediately."))
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search settings")
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self.filter)
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 12, 0)
+        search_row.addWidget(self.search)
+        outer.addLayout(search_row)
+        self.jump_bar = QWidget()
+        outer.addWidget(self.jump_bar)
+        self._sections: list[tuple[str, QLabel, Panel]] = []
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -80,15 +94,64 @@ class SettingsPage(QWidget):
         self._build_startup()
         self._build_experimental()
         self.body.addStretch(1)
+        self._build_jump_bar()
+        self.no_match = caption("No setting matches that search")
+        self.no_match.hide()
+        self.body.insertWidget(0, self.no_match)
         ctx.chordCaptured.connect(self._chord_captured)
 
     # -- layout helpers -------------------------------------------------------------------------
     def _section(self, title: str) -> Panel:
         self.body.addSpacing(8)
-        self.body.addWidget(section_title(title))
+        label = section_title(title)
+        self.body.addWidget(label)
         panel = Panel()
         self.body.addWidget(panel)
+        self._sections.append((title, label, panel))
         return panel
+
+    def _build_jump_bar(self) -> None:
+        """One chip per section: a long page you can cross in one click."""
+        rows = QVBoxLayout(self.jump_bar)
+        rows.setContentsMargins(0, 0, 12, 0)  # lines up with the scrolling content below
+        rows.setSpacing(8)
+        per_row = 5
+        line = None
+        for i, (title, label, _panel) in enumerate(self._sections):
+            if i % per_row == 0:
+                line = QHBoxLayout()
+                line.setSpacing(8)
+                rows.addLayout(line)
+            chip = button(title, "chip")
+            chip.clicked.connect(lambda _c=False, w=label: self.jump_to(w))
+            line.addWidget(chip)
+            if i % per_row == per_row - 1 or i == len(self._sections) - 1:
+                line.addStretch(1)
+
+    def jump_to(self, label: QLabel) -> None:
+        self.scroll.verticalScrollBar().setValue(label.y())
+
+    def filter(self, text: str) -> None:
+        """Show only the settings whose name or description mentions ``text``."""
+        needle = text.strip().casefold()
+        any_shown = False
+        for title, label, panel in self._sections:
+            rows = panel.findChildren(SettingRow)
+            in_title = needle in title.casefold()
+            shown = 0
+            for row in rows:
+                words = row.title.text() + " " + (row.description.text() if row.description else "")
+                visible = not needle or in_title or needle in words.casefold()
+                (row.parentWidget() if row.parentWidget() is not panel else row).setVisible(visible)
+                shown += visible
+            for divider in panel.findChildren(QFrame, "Divider"):
+                divider.setVisible(not needle)
+            section_visible = shown > 0 or not rows and (not needle or in_title)
+            label.setVisible(section_visible)
+            panel.setVisible(section_visible)
+            any_shown = any_shown or section_visible
+        self.jump_bar.setVisible(not needle)
+        self.no_match.setVisible(not any_shown)
 
     def _check(self, panel: Panel, title: str, key: str, description: str = "") -> Toggle:
         toggle = Toggle()

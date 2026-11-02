@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QSizePolicy,
     QStyledItemDelegate,
+    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
@@ -356,3 +357,77 @@ def fade_in(widget: QWidget, duration: int = MOTION_ENTER_MS) -> QPropertyAnimat
     anim.finished.connect(lambda: widget.setGraphicsEffect(None))
     anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
     return anim
+
+
+# -- the recent dictations list -------------------------------------------------------------------
+LANGUAGE_ROLE = Qt.ItemDataRole.UserRole + 1
+
+
+class RecentRowDelegate(QStyledItemDelegate):
+    """Draws one cell of the recent dictations list.
+
+    Column 0 gets a short mark in the language's chart colour (ember English, sage Arabic) so the
+    list and the Insights chart speak the same language; column 1 shows the app as a quiet badge.
+    """
+
+    def paint(self, painter: QPainter, option, index) -> None:  # noqa: ANN001
+        pal = current_palette()
+        if index.column() == 1:
+            # the row's background, then the badge instead of plain text
+            text = index.data() or ""
+            self._paint_background(painter, option)
+            if text:
+                font = QFont(option.font)
+                font.setPixelSize(12)
+                fm = QFontMetrics(font)
+                r = option.rect
+                w = fm.horizontalAdvance(text) + 16
+                badge = QRectF(r.left() + 8, r.center().y() - 11, w, 22)
+                painter.save()
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(pal.raised))
+                painter.drawRoundedRect(badge, 6, 6)
+                painter.setFont(font)
+                painter.setPen(QColor(pal.secondary))
+                painter.drawText(badge, int(Qt.AlignmentFlag.AlignCenter), text)
+                painter.restore()
+            return
+        if index.column() != 0:
+            super().paint(painter, option, index)
+            return
+        # time column: the background spans the cell, the text moves right of the language mark
+        self._paint_background(painter, option)
+        shifted = QStyleOptionViewItem(option)
+        shifted.rect = option.rect.adjusted(10, 0, 0, 0)
+        super().paint(painter, shifted, index)
+        lang = index.data(LANGUAGE_ROLE) or "en"
+        r = option.rect
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(pal.series_2 if lang == "ar" else pal.accent))
+        painter.drawRoundedRect(QRectF(r.left() + 2, r.center().y() - 8, 3, 16), 1.5, 1.5)
+        painter.restore()
+
+    def sizeHint(self, option, index):  # noqa: ANN001, ANN201, N802
+        size = super().sizeHint(option, index)
+        if index.column() == 0:
+            size.setWidth(size.width() + 12)  # room for the language mark
+        elif index.column() == 1:
+            size.setWidth(size.width() + 24)  # room for the badge padding
+        return size
+
+    @staticmethod
+    def _paint_background(painter: QPainter, option) -> None:  # noqa: ANN001
+        from PySide6.QtWidgets import QStyle
+
+        pal = current_palette()
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor(pal.raised))
+        elif option.state & QStyle.StateFlag.State_MouseOver:
+            painter.fillRect(option.rect, QColor(pal.surface_hover))
+        painter.save()
+        painter.setPen(QColor(pal.border))
+        painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+        painter.restore()

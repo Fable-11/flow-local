@@ -40,7 +40,7 @@ from flow.ui.hub.widgets import (
     set_role,
     style_table,
 )
-from flow.ui.kit import StatTile, VoiceTrace
+from flow.ui.kit import LANGUAGE_ROLE, RecentRowDelegate, StatTile, VoiceTrace
 
 ID_ROLE = Qt.ItemDataRole.UserRole
 
@@ -154,7 +154,9 @@ class HomePage(QWidget):
         lay.addLayout(head)
 
         self.history_panel = Panel()
-        self.table = style_table(QTableWidget(0, 3), 42)
+        self.table = style_table(QTableWidget(0, 3), 48)
+        self.table.setItemDelegate(RecentRowDelegate(self.table))
+        self.table.setMouseTracking(True)
         self.table.setHorizontalHeaderLabels(["Time", "App", "Text"])
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setWordWrap(False)
@@ -255,6 +257,7 @@ class HomePage(QWidget):
             for c, text in enumerate(cells):
                 cell = QTableWidgetItem(text)
                 cell.setData(ID_ROLE, it.id)
+                cell.setData(LANGUAGE_ROLE, it.language)
                 cell.setToolTip(it.final)
                 if c == 2 and has_arabic(text[:40]):
                     cell.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)

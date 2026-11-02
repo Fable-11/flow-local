@@ -3,6 +3,15 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.9.0 (not released yet)
+
+- Flow Bar: one state now hands over to the next (the trace fades into the spinner, the check mark
+  draws itself), and after a dictation it shows how many words went in, for example "42 words".
+- Home: each recent dictation has a small mark in its language colour (ember English, sage Arabic,
+  the same colours as the Insights chart) and the app is shown as a quiet badge.
+- Settings: a search box narrows the page to matching settings, and a row of section chips jumps
+  straight to Shortcuts, Microphone, Cleanup and the rest.
+
 ## 0.8.1 (not released yet)
 
 - Insights tells a story now. The typing time you saved is the lead number. The week chart splits

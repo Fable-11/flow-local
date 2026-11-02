@@ -111,3 +111,30 @@ def test_suggestion_buttons_and_timeout(qtbot, bar):
     assert len(seen) == n
     bar._timed_out()
     assert seen[-1] == "expired" and bar.state == "idle"
+
+
+def test_a_state_change_cross_fades_and_then_the_bar_rests(bar, qtbot):
+    bar.set_state("recording")
+    bar.set_state("processing")
+    assert bar.morph() < 1.0  # the trace is handing over to the spinner
+    assert bar._prev_state == "recording"
+    qtbot.waitUntil(lambda: bar.morph() >= 1.0, timeout=1000)
+    bar.set_state("done", "42 words")
+    assert not bar.grab().isNull()  # check mark mid-draw, with the word count
+    bar.set_state("idle")
+    qtbot.waitUntil(lambda: not bar._timer.isActive(), timeout=3000)  # no CPU while idle
+
+
+def test_the_done_pill_grows_to_fit_the_word_count(bar):
+    bar.set_state("done")
+    short = bar._target_size()[0]
+    bar.set_state("done", "1,204 words")
+    assert bar._target_size()[0] > short
+
+
+def test_words_label():
+    from flow.app import words_label
+
+    assert words_label("Hello there, friend.") == "3 words"
+    assert words_label("Hi") == "1 word"
+    assert words_label("") == ""

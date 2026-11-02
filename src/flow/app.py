@@ -52,7 +52,7 @@ from flow.logging_setup import setup_logging
 from flow.processing import TextProcessor
 from flow.store.db import Database, default_db_path
 from flow.store.dictionary import DictionaryStore
-from flow.store.history import HistoryStore
+from flow.store.history import HistoryStore, count_words
 from flow.store.settings_repo import SettingsRepo
 from flow.store.snippets import SnippetStore
 from flow.store.suggestgate import SuggestionGate
@@ -85,6 +85,12 @@ STATUS_TEXT = {
     "processing": "Working...",
     "done": "Inserted",
 }
+
+
+def words_label(text: str) -> str:
+    """What the Flow Bar shows for a moment after a dictation: how much went in."""
+    n = count_words(text)
+    return f"{n:,} word" + ("" if n == 1 else "s") if n else ""
 
 
 class Bridge(QObject):
@@ -600,7 +606,7 @@ class Worker:
                 lang, text, result.text, result.kind, now - t0,
                 t_stt - t0, t_clean - t_stt, now - t_clean, app.process,
             )
-            emit("done", "")
+            emit("done", words_label(result.text))
             if result.suggestion:
                 self.bridge.wordSuggested.emit(result.suggestion)
             self._touch()

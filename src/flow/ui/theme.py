@@ -240,6 +240,9 @@ QPushButton[variant="primary"]:disabled {{ background: {p.border}; color: {p.mut
 QPushButton[variant="ghost"] {{ background: transparent; border: 1px solid transparent; }}
 QPushButton[variant="ghost"]:hover {{ background: {p.surface_hover}; }}
 QPushButton[variant="danger"] {{ color: {p.danger}; }}
+QPushButton[variant="chip"] {{ background: {p.surface}; color: {p.secondary}; border: 1px solid {p.border};
+                               border-radius: 14px; padding: 4px 12px; min-height: 18px; }}
+QPushButton[variant="chip"]:hover {{ color: {p.text}; border-color: {p.border_strong}; }}
 
 /* ---- inputs ---- */
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QComboBox {{

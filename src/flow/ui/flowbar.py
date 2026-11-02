@@ -38,7 +38,7 @@ _TOOLTIPS = {
     "handsfree": "Hands-free. Click, or press Ctrl+Win+Space, to stop. Esc cancels.",
     "command": "Command Mode: say what to do with the selected text. Release to apply, Esc cancels.",
 }
-_RETURN_TO_IDLE_MS = {"done": 900, "error": 2200, "suggest": SUGGEST_SECONDS * 1000}
+_RETURN_TO_IDLE_MS = {"done": 1400, "error": 2200, "suggest": SUGGEST_SECONDS * 1000}
 
 # The bar is always dark, so it takes the dark theme's colours.
 BG = QColor(DARK.surface)
@@ -56,6 +56,8 @@ GREEN = QColor(DARK.success)
 RED = QColor(DARK.danger)
 WHITE = QColor(255, 255, 255, 235)
 N_BARS = 18
+MORPH_S = 0.18  # one state hands over to the next: the old mark fades as the new one arrives
+CHECK_S = 0.22  # the check mark draws itself
 _CLICKABLE = ("recording", "handsfree", "command", "suggest")
 
 
@@ -92,6 +94,8 @@ class FlowBar(QWidget):
         self._idle_timer.setSingleShot(True)
         self._idle_timer.timeout.connect(self._timed_out)
         self._suggest_t0 = 0.0
+        self._prev_state, self._prev_text = "idle", ""
+        self._changed_at = 0.0
         self._add_rect = QRectF()
         self._close_rect = QRectF()
         self.reposition()
@@ -102,6 +106,9 @@ class FlowBar(QWidget):
         if state not in STATES:
             raise ValueError(state)
         self._idle_timer.stop()
+        if state != self._state:
+            self._prev_state, self._prev_text = self._state, self._text
+            self._changed_at = time.monotonic()
         self._state, self._text = state, text
         if state in ("recording", "handsfree", "command"):
             self._levels.extend([0.0] * N_BARS)
@@ -120,6 +127,11 @@ class FlowBar(QWidget):
         # rises at once, falls gently: the trace follows the voice without flickering
         last = self._levels[-1] if self._levels else 0.0
         self._levels.append(max(level_from_rms(rms), last * 0.55))
+
+    def morph(self) -> float:
+        """How far the change to the current state has gone, 0..1 (eased)."""
+        k = min(1.0, (time.monotonic() - self._changed_at) / MORPH_S)
+        return 1 - (1 - k) ** 3
 
     @property
     def state(self) -> str:
@@ -170,7 +182,7 @@ class FlowBar(QWidget):
     # -- animation -----------------------------------------------------------------------
     def _target_size(self) -> tuple[float, float]:
         w, h = _SIZES[self._state]
-        if self._text and self._state in ("error", "loading"):
+        if self._text and self._state in ("error", "loading", "done"):
             fm = QFontMetrics(self._font())
             w = max(w, fm.horizontalAdvance(self._text) + 56)
         if self._state == "suggest":
@@ -192,7 +204,7 @@ class FlowBar(QWidget):
         settled = abs(tw - self._w) < 0.3 and abs(th - self._h) < 0.3
         if settled:
             self._w, self._h = tw, th
-        if self._state == "idle" and settled:
+        if self._state == "idle" and settled and self.morph() >= 1.0:
             self._timer.stop()  # nothing animates while idle: no CPU use
         self.update()
 
@@ -208,17 +220,31 @@ class FlowBar(QWidget):
         p.setBrush(BG if self._state != "idle" else IDLE_BG)
         p.drawRoundedRect(rect, h / 2, h / 2)
         t = time.monotonic() - self._t0
-        if self._state in ("recording", "handsfree", "command"):
-            self._paint_wave(p, rect, t)
-        elif self._state in ("processing", "loading"):
-            self._paint_spinner(p, rect, t)
-        elif self._state == "done":
-            self._paint_check(p, rect)
-        elif self._state == "error":
-            self._paint_cross(p, rect)
-        elif self._state == "suggest":
-            self._paint_suggestion(p, rect)
+        k = self.morph()
+        if k < 1.0 and self._prev_state != "idle":
+            p.setOpacity(1 - k)
+            self._paint_content(p, rect, t, self._prev_state, self._prev_text)
+        p.setOpacity(k)
+        self._paint_content(p, rect, t, self._state, self._text)
+        p.setOpacity(1.0)
         p.end()
+
+    def _paint_content(self, p: QPainter, rect: QRectF, t: float, state: str, text: str) -> None:
+        saved = self._state, self._text
+        self._state, self._text = state, text  # the painters read the state they draw
+        try:
+            if state in ("recording", "handsfree", "command"):
+                self._paint_wave(p, rect, t)
+            elif state in ("processing", "loading"):
+                self._paint_spinner(p, rect, t)
+            elif state == "done":
+                self._paint_check(p, rect)
+            elif state == "error":
+                self._paint_cross(p, rect)
+            elif state == "suggest":
+                self._paint_suggestion(p, rect)
+        finally:
+            self._state, self._text = saved
 
     def _paint_wave(self, p: QPainter, rect: QRectF, t: float) -> None:
         """Each live state has its own mark: a solid dot (hold to talk), a ring (hands-free) or a
@@ -268,10 +294,22 @@ class FlowBar(QWidget):
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         p.setPen(pen)
         c = rect.center()
+        if self._text:
+            c = QPointF(rect.left() + 22, c.y())
         path = QPainterPath(QPointF(c.x() - 7, c.y()))
         path.lineTo(c.x() - 2, c.y() + 5)
         path.lineTo(c.x() + 8, c.y() - 6)
+        drawn = min(1.0, (time.monotonic() - self._changed_at) / CHECK_S)
+        if drawn < 1.0:
+            stroker = QPainterPath()
+            stroker.moveTo(path.pointAtPercent(0.0))
+            steps = 12
+            for i in range(1, steps + 1):
+                stroker.lineTo(path.pointAtPercent(drawn * i / steps))
+            path = stroker
         p.drawPath(path)
+        if self._text:
+            self._paint_text(p, rect, c.x() + 16, rect.right() - c.x() - 22)
 
     def _paint_cross(self, p: QPainter, rect: QRectF) -> None:
         pen = QPen(RED, 2.8)

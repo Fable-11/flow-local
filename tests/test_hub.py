@@ -254,3 +254,23 @@ def test_auto_gain_setting_defaults_on_and_saves(ctx, qtbot):
     assert ctx.settings.auto_gain is True and page.auto_gain.isChecked()
     page.auto_gain.setChecked(False)
     assert ctx.settings.auto_gain is False
+
+
+def test_settings_search_narrows_the_page_and_chips_jump(ctx, qtbot):
+    page = SettingsPage(ctx)
+    qtbot.addWidget(page)
+    page.resize(900, 650)
+    page.show()
+    titles = [t for t, _l, _p in page._sections]
+    assert "Microphone" in titles and page.jump_bar.isVisible()
+    page.search.setText("volume boost")
+    shown = [t for t, label, _p in page._sections if label.isVisible()]
+    assert shown == ["Microphone"] and not page.jump_bar.isVisible()
+    page.search.setText("zzz nothing like this")
+    assert page.no_match.isVisible()
+    page.search.setText("")
+    assert all(label.isVisible() for _t, label, _p in page._sections)
+    assert not page.no_match.isVisible()
+    _t, label, _p = page._sections[-1]
+    page.jump_to(label)
+    assert page.scroll.verticalScrollBar().value() > 0
