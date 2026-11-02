@@ -12,8 +12,15 @@ from collections.abc import Iterable, Sequence
 from datetime import date
 
 from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation, QRectF, QSize, Qt, Slot
-from PySide6.QtGui import QColor, QFont, QPainter
-from PySide6.QtWidgets import QGraphicsOpacityEffect, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import (
+    QGraphicsOpacityEffect,
+    QLabel,
+    QSizePolicy,
+    QStyledItemDelegate,
+    QVBoxLayout,
+    QWidget,
+)
 
 from flow.ui.theme import MOTION_ENTER_MS, current_palette, notifier
 
@@ -34,7 +41,10 @@ def envelope(levels: Sequence[float], bars: int = TRACE_BARS) -> list[float]:
     if len(levels) <= bars:
         return [float(v) for v in levels]
     step = len(levels) / bars
-    return [max(levels[int(i * step) : max(int((i + 1) * step), int(i * step) + 1)]) for i in range(bars)]
+    return [
+        max(levels[int(i * step) : max(int((i + 1) * step), int(i * step) + 1)])
+        for i in range(bars)
+    ]
 
 
 def paint_trace(
@@ -143,17 +153,28 @@ class StatTile(QWidget):
 
 # -- the week chart -------------------------------------------------------------------------------
 class WeekChart(QWidget):
-    """Words per day for the last 7 days. Today is ember; other days are neutral steps."""
+    """Words per day for the last 7 days, split by language, against your daily average.
+
+    Colour means something: ember is English, sage is Arabic, and today is drawn at full strength
+    while earlier days step back. A dashed line marks your usual day, so a bar reads as "more or
+    less than usual" at a glance. A day without dictation keeps a small dot, so gaps stay visible.
+    """
 
     def __init__(self, height: int = 280) -> None:
         super().__init__()
         self.setMinimumHeight(height)
-        self.days: list[tuple[date, int]] = []
+        self.days: list[tuple[date, int, int]] = []  # (day, english, arabic)
+        self.average = 0.0
         notifier.changed.connect(self.update)
 
-    def set_days(self, days: list[tuple[date, int]]) -> None:
-        self.days = days
+    def set_days(self, days: Sequence[tuple], average: float = 0.0) -> None:
+        """``days`` holds (day, words) or (day, english, arabic) tuples, oldest first."""
+        self.days = [(d[0], d[1], 0) if len(d) == 2 else (d[0], d[1], d[2]) for d in days]
+        self.average = average
         self.update()
+
+    def has_arabic(self) -> bool:
+        return any(ar for _, _, ar in self.days)
 
     def paintEvent(self, event) -> None:  # noqa: ANN001, N802
         if not self.days:
@@ -162,33 +183,80 @@ class WeekChart(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        top = max((n for _, n in self.days), default=0) or 1
-        slot = w / len(self.days)
-        base = h - 28  # room for the day labels
-        chart_top = 28  # room for the value above the tallest bar
         font = QFont(self.font())
         font.setPixelSize(12)
         p.setFont(font)
-        grid = QColor(pal.border)
-        for i in range(4):  # a muted grid: baseline plus three quiet lines
-            y = base - (base - chart_top) * i / 3
-            p.setPen(grid)
-            p.drawLine(0, int(y), w, int(y))
-        for i, (d, n) in enumerate(self.days):
+        legend_h = 28
+        base = h - 28  # room for the day labels
+        chart_top = legend_h + 24  # room for the value above the tallest bar
+        top = max([en + ar for _, en, ar in self.days] + [self.average, 1.0])
+        span = base - chart_top
+
+        def y_of(value: float) -> float:
+            return base - span * value / top
+
+        # legend: what each colour means
+        x = 0.0
+        series = [("English", pal.accent)] + (
+            [("Arabic", pal.series_2)] if self.has_arabic() else []
+        )
+        for name, color in series:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(color))
+            p.drawRoundedRect(QRectF(x, 8, 10, 10), 3, 3)
+            p.setPen(QColor(pal.secondary))
+            p.drawText(QRectF(x + 16, 4, 80, 18), int(Qt.AlignmentFlag.AlignVCenter), name)
+            x += 16 + QFontMetrics(font).horizontalAdvance(name) + 20
+        # baseline
+        p.setPen(QColor(pal.border))
+        p.drawLine(0, int(base), w, int(base))
+        # the usual day
+        if self.average > 0:
+            pen = QPen(QColor(pal.muted), 1, Qt.PenStyle.DashLine)
+            pen.setDashPattern([4, 4])
+            p.setPen(pen)
+            ya = y_of(self.average)
+            p.drawLine(0, int(ya), w, int(ya))
+            label = f"Your average {self.average:,.0f}"
+            lw = QFontMetrics(font).horizontalAdvance(label) + 8
+            p.setPen(QColor(pal.muted))
+            p.drawText(QRectF(w - lw, ya - 20, lw, 18), int(Qt.AlignmentFlag.AlignRight), label)
+
+        slot = w / len(self.days)
+        for i, (d, en, ar) in enumerate(self.days):
             today = i == len(self.days) - 1
-            bar_h = (base - chart_top) * n / top
-            bw = min(slot * 0.5, 44.0)
-            rect = QRectF(i * slot + (slot - bw) / 2, base - bar_h, bw, bar_h)
-            if n:
+            total = en + ar
+            bw = min(slot * 0.46, 40.0)
+            left = i * slot + (slot - bw) / 2
+            if total:
+                bar = QRectF(left, y_of(total), bw, base - y_of(total))
+                clip = QPainterPath()
+                clip.addRoundedRect(bar, 6, 6)
+                p.save()
+                p.setClipPath(clip)
                 p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(QColor(pal.accent if today else pal.border_strong))
-                p.drawRoundedRect(rect, 6, 6)
-                p.setPen(QColor(pal.text if today else pal.muted))
+                for value, color, bottom in ((en, pal.accent, 0), (ar, pal.series_2, en)):
+                    if value:
+                        c = QColor(color)
+                        c.setAlphaF(1.0 if today else 0.62)
+                        p.setBrush(c)
+                        p.drawRect(
+                            QRectF(
+                                left, y_of(bottom + value), bw, y_of(bottom) - y_of(bottom + value)
+                            )
+                        )
+                p.restore()
+                above = self.average and total >= self.average
+                p.setPen(QColor(pal.text if today or above else pal.muted))
                 p.drawText(
-                    QRectF(i * slot, rect.top() - 22, slot, 18),
+                    QRectF(i * slot, bar.top() - 22, slot, 18),
                     int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter),
-                    f"{n:,}",
+                    f"{total:,}",
                 )
+            else:
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QColor(pal.border_strong))
+                p.drawEllipse(QRectF(left + bw / 2 - 2, base - 6, 4, 4))
             p.setPen(QColor(pal.text if today else pal.muted))
             p.drawText(
                 QRectF(i * slot, h - 22, slot, 20),
@@ -196,6 +264,82 @@ class WeekChart(QWidget):
                 "Today" if today else d.strftime("%a"),
             )
         p.end()
+
+
+class RankedList(QWidget):
+    """A short ranked list with thin bars: where your words went. The leader is ember."""
+
+    ROW = 32
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.rows: list[tuple[str, int]] = []
+        notifier.changed.connect(self.update)
+
+    def set_rows(self, rows: Sequence[tuple[str, int]]) -> None:
+        self.rows = list(rows)
+        self.setFixedHeight(max(1, len(self.rows)) * self.ROW)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001, N802
+        if not self.rows:
+            return
+        pal = current_palette()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        font = QFont(self.font())
+        font.setPixelSize(13)
+        p.setFont(font)
+        w = self.width()
+        name_w = 140.0
+        value_w = 72.0
+        top = max(n for _, n in self.rows) or 1
+        for i, (name, n) in enumerate(self.rows):
+            y = i * self.ROW
+            p.setPen(QColor(pal.text))
+            p.drawText(QRectF(0, y, name_w, self.ROW), int(Qt.AlignmentFlag.AlignVCenter), name)
+            track = QRectF(name_w, y + self.ROW / 2 - 3, w - name_w - value_w - 12, 6)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(pal.surface_hover))
+            p.drawRoundedRect(track, 3, 3)
+            p.setBrush(QColor(pal.accent if i == 0 else pal.border_strong))
+            p.drawRoundedRect(QRectF(track.left(), track.top(), track.width() * n / top, 6), 3, 3)
+            p.setPen(QColor(pal.secondary))
+            p.drawText(
+                QRectF(w - value_w, y, value_w, self.ROW),
+                int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight),
+                f"{n:,} words",
+            )
+        p.end()
+
+
+class CountBarDelegate(QStyledItemDelegate):
+    """A count with a thin bar under it, scaled to the largest count in the column.
+
+    The bar makes a long list scannable: the words you use most stand out without reading numbers.
+    """
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.top = 1
+
+    def paint(self, painter: QPainter, option, index) -> None:  # noqa: ANN001
+        super().paint(painter, option, index)
+        try:
+            n = int(index.data() or 0)
+        except ValueError:
+            return
+        if n <= 0:
+            return
+        pal = current_palette()
+        r = option.rect
+        width = max(4.0, (r.width() - 24) * n / max(self.top, 1))
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(pal.accent))
+        painter.drawRoundedRect(QRectF(r.left() + 12, r.bottom() - 9, width, 3), 1.5, 1.5)
+        painter.restore()
 
 
 # -- motion ---------------------------------------------------------------------------------------

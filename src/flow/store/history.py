@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 from flow.store.db import Database
@@ -109,11 +109,17 @@ class Insights:
     time_saved_s: float  # versus typing at TYPING_WPM
     streak_days: int
     words_by_day: list[tuple[date, int]]  # last 7 days, oldest first
+    # the same 7 days split by the language each dictation was mostly in: (day, english, arabic)
+    language_by_day: list[tuple[date, int, int]] = field(default_factory=list)
+    daily_average: float = 0.0  # words per day you dictated, over the last 30 days
+    top_apps: list[tuple[str, int]] = field(default_factory=list)  # words per app, last 30 days
 
 
 def compute_insights(db: Database, today: date | None = None) -> Insights:
     today = today or date.today()
-    rows = db.query("SELECT created_at, words, audio_s FROM history WHERE kind != 'command'")
+    rows = db.query(
+        "SELECT created_at, words, audio_s, language, app FROM history WHERE kind != 'command'"
+    )
     total_words = sum(r["words"] for r in rows)
     spoken_s = sum(r["audio_s"] for r in rows if r["audio_s"] > 0)
     spoken_words = sum(r["words"] for r in rows if r["audio_s"] > 0)
@@ -130,7 +136,21 @@ def compute_insights(db: Database, today: date | None = None) -> Insights:
         day -= timedelta(days=1)
     days = [today - timedelta(days=i) for i in range(6, -1, -1)]
     week = [(d, per_day.get(d, 0)) for d in days]
-    return Insights(total_words, len(rows), wpm, saved, streak, week)
+    arabic: Counter[date] = Counter()
+    apps: Counter[str] = Counter()
+    month_ago = today - timedelta(days=29)
+    for r in rows:
+        day = datetime.fromisoformat(r["created_at"]).date()
+        if r["language"] == "ar":
+            arabic[day] += r["words"]
+        if day >= month_ago and r["app"]:
+            apps[r["app"].removesuffix(".exe")] += r["words"]
+    by_lang = [(d, per_day.get(d, 0) - arabic.get(d, 0), arabic.get(d, 0)) for d in days]
+    active = [n for d, n in per_day.items() if month_ago <= d <= today and n]
+    average = sum(active) / len(active) if active else 0.0
+    return Insights(
+        total_words, len(rows), wpm, saved, streak, week, by_lang, average, apps.most_common(5)
+    )
 
 
 @dataclass(frozen=True)

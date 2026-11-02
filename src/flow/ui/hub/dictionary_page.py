@@ -30,10 +30,12 @@ from flow.ui.hub.widgets import (
     Panel,
     button,
     caption,
+    fit_table,
     page_header,
     section_title,
     style_table,
 )
+from flow.ui.kit import CountBarDelegate
 from flow.ui.theme import current_palette, notifier
 
 STAR_ON, STAR_OFF = "★", "☆"
@@ -101,8 +103,9 @@ class DictionaryPage(QWidget):
 
         panel = Panel()
         self.table = style_table(QTableWidget(0, 4))
-        self.table.setHorizontalHeaderLabels(["", "Word", "Replaces spoken form", "Uses"])
-        self.table.setMinimumHeight(220)
+        self.table.setHorizontalHeaderLabels(["", "Word", "Replaces spoken form", "Uses        "])
+        self.uses_bars = CountBarDelegate(self.table)
+        self.table.setItemDelegateForColumn(3, self.uses_bars)
         hdr = self.table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -121,7 +124,7 @@ class DictionaryPage(QWidget):
             self.empty_add,
         )
         panel.add(self.empty_state, padded=False)
-        lay.addWidget(panel, 1)
+        lay.addWidget(panel)
 
         self.delete_btn = button("Delete selected", "danger")
         self.delete_btn.clicked.connect(self.delete_selected)
@@ -155,6 +158,7 @@ class DictionaryPage(QWidget):
         lay.addWidget(self.stop_btn, 0, Qt.AlignmentFlag.AlignLeft)
         ctx.historyChanged.connect(self.refresh_suggestions)
         ctx.historyChanged.connect(self.refresh_replacements)
+        lay.addStretch(1)
         notifier.changed.connect(self.refresh)  # star colours follow the theme
         self.refresh()
 
@@ -178,8 +182,10 @@ class DictionaryPage(QWidget):
             self.table.setItem(r, 1, word)
             self.table.setItem(r, 2, QTableWidgetItem(e.spoken or ""))
             uses = QTableWidgetItem(str(e.uses))
-            uses.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            uses.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(r, 3, uses)
+        self.uses_bars.top = max((e.uses for e in entries), default=1)
+        fit_table(self.table)
         nothing = not self.ctx.dictionary.list()
         self.empty_state.setVisible(nothing)
         self.table.setVisible(not nothing)

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from flow.ui.hub.context import HubContext
-from flow.ui.hub.widgets import EmptyState, Panel, button, page_header, style_table
+from flow.ui.hub.widgets import EmptyState, Panel, button, fit_table, page_header, style_table
 
 
 class SnippetDialog(QDialog):
@@ -97,7 +97,7 @@ class SnippetsPage(QWidget):
             self.empty_add,
         )
         panel.add(self.empty_state, padded=False)
-        lay.addWidget(panel, 1)
+        lay.addWidget(panel)
 
         self.delete_btn = button("Delete selected", "danger")
         self.delete_btn.clicked.connect(self.delete_selected)
@@ -105,6 +105,7 @@ class SnippetsPage(QWidget):
         row.addWidget(self.delete_btn)
         row.addStretch(1)
         lay.addLayout(row)
+        lay.addStretch(1)
         self.refresh()
 
     def refresh(self) -> None:
@@ -115,6 +116,7 @@ class SnippetsPage(QWidget):
             self.table.setItem(r, 0, QTableWidgetItem(s.trigger))
             self.table.setItem(r, 1, QTableWidgetItem(preview))
             self.table.setItem(r, 2, QTableWidgetItem("Yes" if s.anywhere else ""))
+        fit_table(self.table)
         nothing = not self.ctx.snippets.list()
         self.empty_state.setVisible(nothing)
         self.table.setVisible(not nothing)

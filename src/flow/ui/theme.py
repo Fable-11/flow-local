@@ -59,6 +59,7 @@ class Palette:
     success: str
     knob: str
     raised: str  # active row, selected card: one step up from surface
+    series_2: str  # second chart series only (Arabic words next to English in ember)
 
 
 LIGHT = Palette(
@@ -68,7 +69,7 @@ LIGHT = Palette(
     text="#171717", secondary="#4f4f54", muted="#616166",
     accent="#a84a14", accent_hover="#943f0f", accent_pressed="#7f350c", on_accent="#ffffff",
     accent_tint="rgba(168, 74, 20, 0.10)",
-    danger="#c81e1e", success="#15803d", knob="#ffffff", raised="#efeff0",
+    danger="#c81e1e", success="#15803d", knob="#ffffff", raised="#efeff0", series_2="#3f7a63",
 )  # fmt: skip
 DARK = Palette(
     name="dark",
@@ -77,7 +78,7 @@ DARK = Palette(
     text="#ededed", secondary="#b4b4b9", muted="#8e8e94",
     accent="#f08a4b", accent_hover="#f39b63", accent_pressed="#e07a3c", on_accent="#141415",
     accent_tint="rgba(240, 138, 75, 0.14)",
-    danger="#ff6369", success="#4cc38a", knob="#ffffff", raised="#252528",
+    danger="#ff6369", success="#4cc38a", knob="#ffffff", raised="#252528", series_2="#8fbfa8",
 )  # fmt: skip
 
 
@@ -201,6 +202,7 @@ QLabel[role="error"] {{ color: {p.danger}; }}
 QLabel[role="stat"] {{ font-size: 24px; font-weight: 500; }}
 QLabel[role="figure"] {{ font-size: {SIZE_FIGURE}px; font-weight: 500; }}
 QLabel[role="hero"] {{ font-size: 18px; font-weight: 500; }}
+QLabel[role="lead"] {{ font-size: 48px; font-weight: 500; color: {p.accent}; }}
 QLabel[role="sample"] {{ font-size: 15px; color: {p.text}; }}
 
 /* ---- sidebar navigation ---- */

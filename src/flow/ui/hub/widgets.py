@@ -65,6 +65,13 @@ def style_table(table: QTableWidget, row_height: int = 40) -> QTableWidget:
     return table
 
 
+def fit_table(table: QTableWidget, min_rows: int = 3, max_rows: int = 12) -> None:
+    """Size a table to its rows, so a short list does not sit in a tall empty box."""
+    rows = max(min_rows, min(table.rowCount(), max_rows))
+    header = max(table.horizontalHeader().sizeHint().height(), 36)  # known before it is shown
+    table.setFixedHeight(header + rows * table.verticalHeader().defaultSectionSize() + 2)
+
+
 def button(text: str, variant: str = "secondary") -> QPushButton:
     """A button in the app's vocabulary: secondary (default), primary, ghost or danger."""
     b = QPushButton(text)

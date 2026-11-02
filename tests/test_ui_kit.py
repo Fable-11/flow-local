@@ -107,3 +107,36 @@ def test_the_interface_uses_one_accent_only():
             if len({r, g, b}) > 1:  # a grey is fine, a hue is not
                 offenders.append(f"{path.name}: QColor({r}, {g}, {b})")
     assert not offenders, offenders
+
+
+def test_insights_split_the_week_by_language_and_rank_the_apps():
+    from flow.store.history import compute_insights
+
+    db = Database()
+    h = HistoryStore(db)
+    h.add("r", "one two three four", "chrome.exe", language="en", now=datetime(2026, 3, 9, 9))
+    h.add("r", "واحد اثنين", "whatsapp.exe", language="ar", now=datetime(2026, 3, 9, 10))
+    h.add("r", "five six", "chrome.exe", language="en", now=datetime(2026, 3, 7, 9))
+    ins = compute_insights(db, date(2026, 3, 9))
+    assert ins.language_by_day[-1] == (date(2026, 3, 9), 4, 2)
+    assert ins.top_apps[0] == ("chrome", 6)
+    assert ins.daily_average == pytest.approx(4.0)  # (6 + 2) / 2 days with dictation
+
+
+def test_the_week_line_compares_today_with_a_usual_day():
+    from flow.ui.hub.insights_page import week_note
+
+    assert week_note(76, 97) == "Today 76 words, 21 fewer than usual"
+    assert week_note(300, 100) == "Today 300 words, 200 more than usual"
+    assert week_note(101, 100) == "Today 101 words, about your usual"
+    assert week_note(0, 50).startswith("Nothing yet today")
+    assert week_note(10, 0) == ""
+
+
+def test_week_chart_accepts_both_shapes_of_data(qtbot):
+    chart = WeekChart()
+    qtbot.addWidget(chart)
+    chart.set_days([(date(2026, 3, d), 10) for d in range(1, 8)], 10)
+    assert not chart.has_arabic()
+    chart.set_days([(date(2026, 3, d), 10, d) for d in range(1, 8)], 12)
+    assert chart.has_arabic() and not chart.grab().isNull()

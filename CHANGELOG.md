@@ -3,6 +3,15 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.8.1 (not released yet)
+
+- Insights tells a story now. The typing time you saved is the lead number. The week chart splits
+  each day into English (ember) and Arabic (sage), shows today at full strength, and draws a dashed
+  line at your usual day, with a sentence saying how today compares. A new list shows which apps you
+  dictate into most.
+- Dictionary and Snippets: tables fit their rows instead of sitting in a tall empty box, and the
+  Uses column shows a small bar so your most-used words stand out.
+
 ## 0.8.0 (not released yet)
 
 - New look. Graphite greys with one ember accent replace the blue. The voice trace (rounded bars that
