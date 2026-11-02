@@ -1,9 +1,10 @@
 """Design tokens and the application stylesheet, for light and dark (following Windows).
 
-Strategy: Restrained. Cool-tinted neutrals plus ONE accent (the blue of the app icon), used only
-for primary actions, the selected item, toggles that are on, and the focus ring. The sidebar is a
-second neutral layer. One font family (Segoe UI), a tight type scale, 8 px radius controls and
-12 px radius panels. Every text colour here is checked against its background by the tests.
+Direction: warm, attentive, unhurried. A voice in a quiet room, with an ember recording light.
+Graphite neutrals carry every surface; ONE ember accent marks the primary action, the selection,
+today's figure and a live recording. The voice trace (rounded bars) is the signature: live in the
+Flow Bar, frozen on Home, nowhere else. Depth comes from surface steps, not shadows or glows. Every
+text colour here is checked against its background by the tests.
 """
 
 from __future__ import annotations
@@ -23,11 +24,18 @@ FONT_FALLBACK = "Segoe UI"
 SIZE_CAPTION = 12
 SIZE_BODY = 13
 SIZE_SECTION = 15
-SIZE_TITLE = 22
+SIZE_TITLE = 28
+SIZE_FIGURE = 28
 
 RADIUS_CONTROL = 8
 RADIUS_PANEL = 12
+RADIUS_CARD = 16
 RADIUS_CHIP = 4  # key caps, list rows, menu rows: inside a padded container
+
+
+# motion: one curve, two durations (feedback, things that enter)
+MOTION_FAST_MS = 150
+MOTION_ENTER_MS = 240
 
 
 @dataclass(frozen=True)
@@ -40,6 +48,7 @@ class Palette:
     border: str
     border_strong: str
     text: str
+    secondary: str  # body text that is not the main thing
     muted: str  # secondary text: must stay >= 4.5:1 on bg and surface
     accent: str
     accent_hover: str
@@ -49,25 +58,26 @@ class Palette:
     danger: str
     success: str
     knob: str
+    raised: str  # active row, selected card: one step up from surface
 
 
 LIGHT = Palette(
     name="light",
-    bg="#f7f8fa", sidebar="#eef0f4", surface="#ffffff", surface_hover="#f1f3f7",
-    border="#e1e5ec", border_strong="#c9cfda",
-    text="#14171f", muted="#566074",
-    accent="#2457d6", accent_hover="#1d49b8", accent_pressed="#173b96", on_accent="#ffffff",
-    accent_tint="rgba(36, 87, 214, 0.11)",
-    danger="#b42318", success="#0e7a45", knob="#ffffff",
+    bg="#fafafa", sidebar="#f4f4f5", surface="#ffffff", surface_hover="#f0f0f1",
+    border="#e6e6e8", border_strong="#c4c4c8",
+    text="#171717", secondary="#4f4f54", muted="#616166",
+    accent="#a84a14", accent_hover="#943f0f", accent_pressed="#7f350c", on_accent="#ffffff",
+    accent_tint="rgba(168, 74, 20, 0.10)",
+    danger="#c81e1e", success="#15803d", knob="#ffffff", raised="#efeff0",
 )  # fmt: skip
 DARK = Palette(
     name="dark",
-    bg="#12141a", sidebar="#0d0f14", surface="#1a1d25", surface_hover="#222631",
-    border="#2a2f3b", border_strong="#3a4151",
-    text="#e9ebf1", muted="#a1a9ba",
-    accent="#6c9bff", accent_hover="#8bb0ff", accent_pressed="#5588f0", on_accent="#0b1020",
-    accent_tint="rgba(108, 155, 255, 0.16)",
-    danger="#ff8f85", success="#5fd69f", knob="#ffffff",
+    bg="#141415", sidebar="#0f0f10", surface="#19191b", surface_hover="#202022",
+    border="#26262a", border_strong="#3a3a3e",
+    text="#ededed", secondary="#b4b4b9", muted="#8e8e94",
+    accent="#f08a4b", accent_hover="#f39b63", accent_pressed="#e07a3c", on_accent="#141415",
+    accent_tint="rgba(240, 138, 75, 0.14)",
+    danger="#ff6369", success="#4cc38a", knob="#ffffff", raised="#252528",
 )  # fmt: skip
 
 
@@ -182,22 +192,30 @@ QScrollArea, QScrollArea > QWidget > QWidget {{ background: transparent; border:
 QWidget#Sidebar {{ background: {p.sidebar}; border-right: 1px solid {p.border}; }}
 
 /* ---- type roles ---- */
-QLabel[role="title"] {{ font-size: {SIZE_TITLE}px; font-weight: 600; }}
-QLabel[role="section"] {{ font-size: {SIZE_SECTION}px; font-weight: 600; }}
-QLabel[role="strong"] {{ font-weight: 600; }}
-QLabel[role="muted"] {{ color: {p.muted}; }}
+QLabel[role="title"] {{ font-size: {SIZE_TITLE}px; font-weight: 500; }}
+QLabel[role="section"] {{ font-size: {SIZE_SECTION}px; font-weight: 500; }}
+QLabel[role="strong"] {{ font-weight: 500; }}
+QLabel[role="muted"] {{ color: {p.secondary}; }}
 QLabel[role="caption"] {{ color: {p.muted}; font-size: {SIZE_CAPTION}px; }}
 QLabel[role="error"] {{ color: {p.danger}; }}
-QLabel[role="stat"] {{ font-size: 24px; font-weight: 600; }}
+QLabel[role="stat"] {{ font-size: 24px; font-weight: 500; }}
+QLabel[role="figure"] {{ font-size: {SIZE_FIGURE}px; font-weight: 500; }}
+QLabel[role="hero"] {{ font-size: 18px; font-weight: 500; }}
+QLabel[role="sample"] {{ font-size: 15px; color: {p.text}; }}
 
 /* ---- sidebar navigation ---- */
 QListWidget#Nav {{ background: transparent; border: none; outline: 0; }}
-QListWidget#Nav::item {{ color: {p.text}; padding: 8px 12px; margin: 2px 0; border-radius: {RADIUS_CONTROL}px; }}
-QListWidget#Nav::item:hover {{ background: {p.surface_hover}; }}
-QListWidget#Nav::item:selected {{ background: {p.accent_tint}; color: {p.accent}; font-weight: 600; }}
+QListWidget#Nav::item {{ color: {p.secondary}; padding: 8px 12px; margin: 2px 0; border-radius: {RADIUS_CONTROL}px; }}
+QListWidget#Nav::item:hover {{ background: {p.surface_hover}; color: {p.text}; }}
+QListWidget#Nav::item:selected {{ background: {p.raised}; color: {p.text}; font-weight: 500; }}
 
 /* ---- panels ---- */
 QFrame#Panel {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {RADIUS_PANEL}px; }}
+QFrame#Card {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {RADIUS_CARD}px; }}
+QFrame#Hero {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {RADIUS_CARD}px; }}
+QFrame#ToneCard {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {RADIUS_PANEL}px; }}
+QFrame#ToneCard:hover {{ border-color: {p.border_strong}; }}
+QFrame#ToneCard[selected="true"] {{ background: {p.raised}; border: 1px solid {p.accent}; }}
 QFrame#Divider {{ background: {p.border}; border: none; min-height: 1px; max-height: 1px; }}
 QFrame#VDivider {{ background: {p.border}; border: none; min-width: 1px; max-width: 1px; }}
 QPlainTextEdit#NoteEditor {{ border: none; background: transparent; padding: 16px; border-radius: 0; }}
@@ -213,7 +231,7 @@ QPushButton:pressed {{ background: {p.border}; }}
 QPushButton:focus {{ border: 2px solid {p.accent}; padding: 7px 15px; }}
 QPushButton:disabled {{ color: {p.muted}; background: {p.bg}; border-color: {p.border}; }}
 QPushButton[variant="primary"] {{ background: {p.accent}; color: {p.on_accent}; border: 1px solid {p.accent};
-                                  font-weight: 600; }}
+                                  font-weight: 500; }}
 QPushButton[variant="primary"]:hover {{ background: {p.accent_hover}; border-color: {p.accent_hover}; }}
 QPushButton[variant="primary"]:pressed {{ background: {p.accent_pressed}; border-color: {p.accent_pressed}; }}
 QPushButton[variant="primary"]:disabled {{ background: {p.border}; color: {p.muted}; border-color: {p.border}; }}

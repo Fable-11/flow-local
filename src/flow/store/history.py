@@ -133,6 +133,27 @@ def compute_insights(db: Database, today: date | None = None) -> Insights:
     return Insights(total_words, len(rows), wpm, saved, streak, week)
 
 
+@dataclass(frozen=True)
+class Today:
+    words: int
+    dictations: int
+    time_saved_s: float
+
+
+def compute_today(db: Database, today: date | None = None) -> Today:
+    """Words, dictations and typing time saved for one day (the Home summary)."""
+    day = (today or date.today()).isoformat()
+    rows = db.query(
+        "SELECT words, audio_s FROM history "
+        "WHERE kind != 'command' AND substr(created_at, 1, 10) = ?",
+        (day,),
+    )
+    words = sum(r["words"] for r in rows)
+    spoken_s = sum(r["audio_s"] for r in rows if r["audio_s"] > 0)
+    saved = max(0.0, words / TYPING_WPM * 60 - spoken_s) if rows else 0.0
+    return Today(words, len(rows), saved)
+
+
 # -- notes ------------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Note:

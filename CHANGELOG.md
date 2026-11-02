@@ -3,6 +3,19 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.8.0 (not released yet)
+
+- New look. Graphite greys with one ember accent replace the blue. The voice trace (rounded bars that
+  follow how loudly you speak) is the app's mark: live and ember in the Flow Bar, and on Home as a
+  still trace of your last dictation.
+- Home opens with what matters now: the status, today's words, dictations and typing time saved, and
+  your last dictation. Shortcuts sit in two compact columns.
+- Insights shows its numbers as large figures above a bigger week chart, with today in ember.
+- Style shows each tone as a card with its example sentence; click a card to choose it.
+- Flow Bar: each mode has its own mark (a dot for hold-to-talk, a ring for hands-free, a chevron for
+  Command Mode), the trace follows your voice smoothly, and nothing pulses any more. The tray icon
+  matches.
+
 ## 0.7.5 (not released yet)
 
 - Polished: spacing, padding and corner radii now follow one 4 px grid and one radius scale across

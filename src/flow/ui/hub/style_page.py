@@ -6,8 +6,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QPlainTextEdit,
     QRadioButton,
@@ -27,6 +30,7 @@ from flow.ui.hub.widgets import (
     caption,
     muted,
     page_header,
+    repolish,
     section_title,
     style_table,
 )
@@ -38,6 +42,38 @@ EXAMPLES = {
     "excited": "We should totally meet at 4 tomorrow!",
     "very_casual": "we should meet at 4 tmrw",
 }
+
+
+class ToneCard(QFrame):
+    """One tone, shown by what it does to a sentence. The whole card selects it."""
+
+    def __init__(self, label: str, example: str, description: str) -> None:
+        super().__init__()
+        self.setObjectName("ToneCard")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        col = QVBoxLayout(self)
+        col.setContentsMargins(16, 16, 16, 16)
+        col.setSpacing(8)
+        self.radio = QRadioButton(label)
+        col.addWidget(self.radio)
+        sample = QLabel(f"“{example}”")
+        sample.setWordWrap(True)
+        sample.setProperty("role", "sample")
+        sample.setContentsMargins(24, 0, 0, 0)
+        col.addWidget(sample)
+        hint = caption(description)
+        hint.setContentsMargins(24, 0, 0, 0)
+        col.addWidget(hint)
+        col.addStretch(1)
+        self.radio.toggled.connect(self._mark)
+
+    def _mark(self, on: bool) -> None:
+        self.setProperty("selected", "true" if on else "false")
+        repolish(self)
+
+    def mousePressEvent(self, event) -> None:  # noqa: ANN001, N802
+        self.radio.setChecked(True)
+        super().mousePressEvent(event)
 
 
 class StylePage(QWidget):
@@ -62,25 +98,20 @@ class StylePage(QWidget):
 
         # -- tone ----------------------------------------------------------------------------
         lay.addWidget(section_title("Tone"))
-        tone = Panel()
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(12)
         self.group = QButtonGroup(self)
         self.radios: dict[str, QRadioButton] = {}
-        for key, label in STYLE_NAMES.items():
-            row = QWidget()
-            col = QVBoxLayout(row)
-            col.setContentsMargins(0, 0, 0, 0)
-            col.setSpacing(2)
-            radio = QRadioButton(label)
-            radio.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.radios[key] = radio
-            self.group.addButton(radio)
-            col.addWidget(radio)
-            hint = caption(f"{STYLES[key]}  Example: “{EXAMPLES[key]}”")
-            hint.setContentsMargins(24, 0, 0, 0)
-            col.addWidget(hint)
-            tone.add(row)
-            radio.toggled.connect(lambda on, k=key: on and self._style_chosen(k))
-        lay.addWidget(tone)
+        self.cards: dict[str, ToneCard] = {}
+        for i, (key, label) in enumerate(STYLE_NAMES.items()):
+            card = ToneCard(label, EXAMPLES[key], STYLES[key])
+            self.cards[key] = card
+            self.radios[key] = card.radio
+            self.group.addButton(card.radio)
+            card.radio.toggled.connect(lambda on, k=key: on and self._style_chosen(k))
+            grid.addWidget(card, i // 2, i % 2)
+        lay.addLayout(grid)
 
         # -- custom instructions -------------------------------------------------------------
         lay.addWidget(section_title("Your own instructions"))

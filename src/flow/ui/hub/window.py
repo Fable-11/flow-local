@@ -39,7 +39,7 @@ NAV_ICONS = {
     "Notes": "notes",
     "Settings": "settings",
 }
-SIDEBAR_WIDTH = 228
+SIDEBAR_WIDTH = 240
 CONTENT_MAX_WIDTH = 900
 _BUSY = ("listening", "working", "loading", "downloading")
 _BAD = ("not downloaded", "could not", "unavailable", "stopped", "no microphone", "error", "broke")
@@ -104,7 +104,7 @@ class HubWindow(QMainWindow):
         holder = QWidget()
         holder.setObjectName("Page")
         lay = QHBoxLayout(holder)
-        lay.setContentsMargins(36, 32, 36, 24)
+        lay.setContentsMargins(40, 32, 40, 24)
         page.setMaximumWidth(CONTENT_MAX_WIDTH)
         lay.addStretch(1)
         lay.addWidget(page, 100)
@@ -136,12 +136,12 @@ class HubWindow(QMainWindow):
 
         self.nav = QListWidget()
         self.nav.setObjectName("Nav")
-        self.nav.setIconSize(QSize(20, 20))
+        self.nav.setIconSize(QSize(18, 18))
         self.nav.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.nav.setSpacing(1)
         for name in PAGES:
             item = QListWidgetItem(name)
-            item.setSizeHint(QSize(0, 38))
+            item.setSizeHint(QSize(0, 36))
             self.nav.addItem(item)
         col.addWidget(self.nav, 1)
 

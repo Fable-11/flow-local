@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
-from flow.ui.theme import LIGHT
+from flow.ui.theme import DARK, LIGHT
 
 
 def make_icon(size: int = 64) -> QIcon:
@@ -17,9 +17,10 @@ def make_icon(size: int = 64) -> QIcon:
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(LIGHT.accent))
+    # the voice trace in ember on graphite: the same mark as the Flow Bar and the Hub
+    p.setBrush(QColor(DARK.surface))
     p.drawRoundedRect(QRectF(2, 2, size - 4, size - 4), size * 0.24, size * 0.24)
-    p.setBrush(QColor(255, 255, 255))
+    p.setBrush(QColor(DARK.accent))
     heights = (0.22, 0.42, 0.6, 0.38, 0.2)
     bw, gap = size * 0.1, size * 0.065
     x = (size - (5 * bw + 4 * gap)) / 2

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import collections
 import ctypes
-import math
 import sys
 import time
 
@@ -12,6 +11,7 @@ from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
+from flow.ui.kit import level_from_rms, paint_trace
 from flow.ui.screens import PREFIX, find_screen
 from flow.ui.theme import DARK
 
@@ -25,9 +25,9 @@ SUGGEST_SECONDS = 10
 _SIZES = {
     "idle": (44, 6),
     "loading": (110, 34),
-    "recording": (156, 34),
-    "handsfree": (156, 34),
-    "command": (156, 34),
+    "recording": (160, 36),
+    "handsfree": (160, 36),
+    "command": (160, 36),
     "processing": (96, 34),
     "done": (64, 34),
     "error": (64, 34),
@@ -42,17 +42,20 @@ _RETURN_TO_IDLE_MS = {"done": 900, "error": 2200, "suggest": SUGGEST_SECONDS * 1
 
 # The bar is always dark, so it takes the dark theme's colours.
 BG = QColor(DARK.surface)
-BG.setAlpha(240)
-BORDER = QColor(255, 255, 255, 64)
+BG.setAlpha(244)
+IDLE_BG = QColor(DARK.border_strong)
+IDLE_BG.setAlpha(220)
+BORDER = QColor(255, 255, 255, 40)  # a hairline: visible over dark windows, quiet over light ones
+# The voice trace is ember while you speak; command mode (an instruction, not dictation) is off-white.
 ACCENT = {
-    "recording": QColor(DARK.danger),
+    "recording": QColor(DARK.accent),
     "handsfree": QColor(DARK.accent),
     "command": QColor(DARK.text),
 }
 GREEN = QColor(DARK.success)
 RED = QColor(DARK.danger)
 WHITE = QColor(255, 255, 255, 235)
-N_BARS = 13
+N_BARS = 18
 _CLICKABLE = ("recording", "handsfree", "command", "suggest")
 
 
@@ -114,7 +117,9 @@ class FlowBar(QWidget):
 
     @Slot(float)
     def push_level(self, rms: float) -> None:
-        self._levels.append(min(1.0, (max(rms, 0.0) * 9.0) ** 0.7))
+        # rises at once, falls gently: the trace follows the voice without flickering
+        last = self._levels[-1] if self._levels else 0.0
+        self._levels.append(max(level_from_rms(rms), last * 0.55))
 
     @property
     def state(self) -> str:
@@ -200,7 +205,7 @@ class FlowBar(QWidget):
         w, h = self._w, self._h
         rect = QRectF((self.W - w) / 2, self.H - h - 8, w, h)
         p.setPen(QPen(BORDER, 1))
-        p.setBrush(BG if self._state != "idle" else QColor(24, 24, 28, 170))
+        p.setBrush(BG if self._state != "idle" else IDLE_BG)
         p.drawRoundedRect(rect, h / 2, h / 2)
         t = time.monotonic() - self._t0
         if self._state in ("recording", "handsfree", "command"):
@@ -216,20 +221,30 @@ class FlowBar(QWidget):
         p.end()
 
     def _paint_wave(self, p: QPainter, rect: QRectF, t: float) -> None:
+        """Each live state has its own mark: a solid dot (hold to talk), a ring (hands-free) or a
+        chevron (command), then the voice trace. Nothing pulses; the trace itself shows it is live."""
         color = ACCENT[self._state]
-        pulse = 0.65 + 0.35 * (0.5 + 0.5 * math.sin(t * 6))
-        dot = QColor(color)
-        dot.setAlphaF(pulse)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(dot)
         cy = rect.center().y()
-        p.drawEllipse(QPointF(rect.left() + 18, cy), 4.5, 4.5)
-        p.setBrush(WHITE)
-        gap, bw = 6.0, 3.0
-        x0 = rect.left() + 38
-        for i, lv in enumerate(self._levels):
-            bh = 4.0 + lv * (rect.height() - 12)
-            p.drawRoundedRect(QRectF(x0 + i * gap, cy - bh / 2, bw, bh), 1.5, 1.5)
+        mark = QPointF(rect.left() + 18, cy)
+        if self._state == "recording":
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(color)
+            p.drawEllipse(mark, 4.5, 4.5)
+        elif self._state == "handsfree":
+            p.setPen(QPen(color, 2.0))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawEllipse(mark, 4.0, 4.0)
+        else:
+            pen = QPen(color, 2.0)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            p.setPen(pen)
+            path = QPainterPath(QPointF(mark.x() - 3, cy - 4.5))
+            path.lineTo(mark.x() + 2, cy)
+            path.lineTo(mark.x() - 3, cy + 4.5)
+            p.drawPath(path)
+        area = QRectF(rect.left() + 34, rect.top() + 6, rect.width() - 34 - 14, rect.height() - 12)
+        paint_trace(p, area, self._levels, color, 3.0, 3.0)
 
     def _paint_spinner(self, p: QPainter, rect: QRectF, t: float) -> None:
         pen = QPen(WHITE, 2.6)
@@ -287,9 +302,9 @@ class FlowBar(QWidget):
             QFontMetrics(font).elidedText(self._text, Qt.TextElideMode.ElideRight, int(text_rect.width())),
         )
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(GREEN)
+        p.setBrush(QColor(DARK.accent))  # the one primary action
         p.drawRoundedRect(add, 12, 12)
-        p.setPen(QColor(16, 40, 26))
+        p.setPen(QColor(DARK.on_accent))
         p.drawText(add, Qt.AlignmentFlag.AlignCenter, "Add")
         pen = QPen(WHITE, 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)

@@ -60,6 +60,7 @@ from flow.stt.engine import ModelNotDownloaded, SttEngine, choose_model
 from flow.stt.models import is_model_cached
 from flow.ui.flowbar import FlowBarGroup
 from flow.ui.hub.context import HubContext
+from flow.ui.kit import TraceRecorder
 from flow.ui.theme import apply_theme, follow_system_theme
 from flow.ui.tray import Tray
 
@@ -737,6 +738,10 @@ def run_app(background: bool = False) -> int:
 
     bridge.state.connect(bar.set_state)
     bridge.level.connect(bar.push_level)
+    # the loudness of the last dictation, drawn on Home (kept in memory, never saved)
+    tracer = TraceRecorder(ctx.lastTraceChanged.emit)
+    bridge.state.connect(tracer.on_state)
+    bridge.level.connect(tracer.on_level)
     bridge.captured.connect(ctx.chordCaptured)
     bridge.historyChanged.connect(ctx.historyChanged)
     prompt = DictionaryPrompt(ctx, bar, SuggestionGate(repo))

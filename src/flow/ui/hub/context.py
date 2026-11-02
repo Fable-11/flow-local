@@ -24,6 +24,7 @@ class HubContext(QObject):
     fixSuggested = Signal(str, str)  # heard, correct: offer to add to the dictionary
     aiStatusChanged = Signal(str, str, bool)  # code, text, show the Start Ollama button
     startOllamaRequested = Signal()  # the user pressed the Start Ollama button
+    lastTraceChanged = Signal(list)  # loudness of the last dictation (0..1 per bar), memory only
 
     def __init__(
         self, dictionary: DictionaryStore, snippets: SnippetStore, repo: SettingsRepo
@@ -40,6 +41,8 @@ class HubContext(QObject):
         self.status = ""  # last status text, so a window opened later shows the current state
         self.ai_status: tuple[str, str, bool] = ("", "", False)  # same idea for the AI line
         self.aiStatusChanged.connect(lambda c, t, b: setattr(self, "ai_status", (c, t, b)))
+        self.last_trace: list[float] = []  # never written to disk
+        self.lastTraceChanged.connect(lambda levels: setattr(self, "last_trace", list(levels)))
         self.statusChanged.connect(self._remember_status)
 
     def _remember_status(self, text: str) -> None:

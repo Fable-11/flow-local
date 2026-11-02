@@ -8,11 +8,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -21,6 +24,8 @@ from PySide6.QtWidgets import (
 
 from flow.cleanup.rules import clean_rules
 from flow.config import BINDING_LABELS
+from flow.insert.fit import has_arabic
+from flow.store.history import compute_today
 from flow.ui.hub.context import HubContext
 from flow.ui.hub.widgets import (
     EmptyState,
@@ -35,6 +40,7 @@ from flow.ui.hub.widgets import (
     set_role,
     style_table,
 )
+from flow.ui.kit import StatTile, VoiceTrace
 
 ID_ROLE = Qt.ItemDataRole.UserRole
 
@@ -57,23 +63,25 @@ class HomePage(QWidget):
         outer.addWidget(scrollable(inner))
         lay = QVBoxLayout(inner)
         lay.setContentsMargins(0, 0, 12, 0)
-        lay.setSpacing(20)
+        lay.setSpacing(16)
         lay.addWidget(page_header("Home", "Dictate in any app: hold your shortcut, speak, let go."))
 
-        # -- live status -------------------------------------------------------------------
-        status_panel = Panel()
-        row = QWidget()
-        status_row = QHBoxLayout(row)
-        status_row.setContentsMargins(0, 0, 0, 0)
-        status_row.setSpacing(12)
+        # -- hero: what is happening now, today in numbers, and the last thing you said ----------
+        hero = QFrame()
+        hero.setObjectName("Hero")
+        hero_lay = QVBoxLayout(hero)
+        hero_lay.setContentsMargins(24, 24, 24, 24)
+        hero_lay.setSpacing(20)
+        row = QHBoxLayout()
+        row.setSpacing(12)
         self.dot = StatusDot(12)
-        self.status = set_role(QLabel(ctx.status or "Starting..."), "section")
+        self.status = set_role(QLabel(ctx.status or "Starting..."), "hero")
         self.status.setWordWrap(True)
-        status_row.addWidget(self.dot, 0, Qt.AlignmentFlag.AlignTop)
-        status_row.addWidget(self.status, 1)
-        status_panel.add(row)
-        ai_row = QWidget()
-        ai_lay = QHBoxLayout(ai_row)
+        row.addWidget(self.dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(self.status, 1)
+        hero_lay.addLayout(row)
+        self.ai_row = QWidget()
+        ai_lay = QHBoxLayout(self.ai_row)
         ai_lay.setContentsMargins(24, 0, 0, 0)
         ai_lay.setSpacing(12)
         self.ai_label = caption("")
@@ -82,24 +90,59 @@ class HomePage(QWidget):
         self.ai_button.clicked.connect(self._start_ollama)
         ai_lay.addWidget(self.ai_label, 1)
         ai_lay.addWidget(self.ai_button, 0, Qt.AlignmentFlag.AlignVCenter)
-        status_panel.add(ai_row)
-        # the row and its divider only exist while there is something to say or a button to show
-        self._ai_parts = [ai_row.parentWidget(), status_panel.layout().itemAt(1).widget()]
-        lay.addWidget(status_panel)
+        hero_lay.addWidget(self.ai_row)
+        # the row only exists while there is something to say or a button to show
+        self._ai_parts = [self.ai_row]
 
-        # -- shortcuts ---------------------------------------------------------------------
+        tiles = QHBoxLayout()
+        tiles.setSpacing(32)
+        self.today = {
+            "words": StatTile("Words today"),
+            "dictations": StatTile("Dictations today"),
+            "saved": StatTile("Typing time saved today"),
+        }
+        for tile in self.today.values():
+            tiles.addWidget(tile, 0, Qt.AlignmentFlag.AlignTop)
+        tiles.addStretch(1)
+        hero_lay.addLayout(tiles)
+
+        self.last_box = QWidget()
+        last = QVBoxLayout(self.last_box)
+        last.setContentsMargins(0, 0, 0, 0)
+        last.setSpacing(8)
+        last.addWidget(caption("Last dictation"))
+        self.trace = VoiceTrace(36)
+        last.addWidget(self.trace)
+        self.last_text = set_role(QLabel(""), "muted")
+        self.last_text.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        last.addWidget(self.last_text)
+        hero_lay.addWidget(self.last_box)
+        lay.addWidget(hero)
+
+        # -- shortcuts: two quiet columns of keys -------------------------------------------
+        lay.addSpacing(8)
         lay.addWidget(section_title("Shortcuts"))
-        self.shortcut_panel = Panel()
+        self.shortcut_panel = QFrame()
+        self.shortcut_panel.setObjectName("Card")
+        grid = QGridLayout(self.shortcut_panel)
+        grid.setContentsMargins(20, 16, 20, 16)
+        grid.setHorizontalSpacing(32)
+        grid.setVerticalSpacing(12)
         self._caps: dict[str, KeyCaps] = {}
-        for name, label in BINDING_LABELS.items():
-            caps = KeyCaps("")
-            self._caps[name] = caps
-            self.shortcut_panel.add_row(label, control=caps)
-        esc = KeyCaps("esc")
-        self.shortcut_panel.add_row("Cancel", "Discards what you said, nothing is inserted.", esc)
+        entries = [(name, label) for name, label in BINDING_LABELS.items()] + [("cancel", "Cancel")]
+        for i, (name, label) in enumerate(entries):
+            caps = KeyCaps("esc" if name == "cancel" else "")
+            if name != "cancel":
+                self._caps[name] = caps
+            cell = QHBoxLayout()
+            cell.setSpacing(12)
+            cell.addWidget(QLabel(label), 1)
+            cell.addWidget(caps)
+            grid.addLayout(cell, i // 2, i % 2)
         lay.addWidget(self.shortcut_panel)
 
         # -- recent dictations ---------------------------------------------------------------
+        lay.addSpacing(8)
         head = QHBoxLayout()
         head.addWidget(section_title("Recent dictations"), 1)
         self.search = QLineEdit()
@@ -148,7 +191,9 @@ class HomePage(QWidget):
         self._set_ai_status(*ctx.ai_status)
         ctx.settingsChanged.connect(self._settings_changed)
         ctx.historyChanged.connect(self.refresh)
+        ctx.lastTraceChanged.connect(self._set_trace)
         self._set_status(ctx.status)
+        self._set_trace(ctx.last_trace)
         self.refresh_shortcuts()
         self.refresh()
 
@@ -168,6 +213,25 @@ class HomePage(QWidget):
         for part in self._ai_parts:
             part.setVisible(bool(text) or can_start)
 
+    def _set_trace(self, levels: list[float]) -> None:
+        self.trace.set_levels(levels)
+        self.trace.setVisible(bool(levels))
+
+    def _refresh_today(self) -> None:
+        from flow.ui.hub.insights_page import format_duration
+
+        today = compute_today(self.ctx.dictionary.db)
+        self.today["words"].set(f"{today.words:,}")
+        self.today["dictations"].set(f"{today.dictations:,}")
+        self.today["saved"].set(format_duration(today.time_saved_s))
+        newest = self.ctx.history.recent(1)
+        text = " ".join(newest[0].final.split()) if newest else ""
+        self.last_text.setText(text)
+        self.last_text.setLayoutDirection(
+            Qt.LayoutDirection.RightToLeft if has_arabic(text[:40]) else Qt.LayoutDirection.LeftToRight
+        )
+        self.last_box.setVisible(bool(text))
+
     def _start_ollama(self) -> None:
         self.ai_button.setEnabled(False)  # one press; the status line updates by itself
         self.ctx.startOllamaRequested.emit()
@@ -181,6 +245,7 @@ class HomePage(QWidget):
 
     # -- history --------------------------------------------------------------------------------
     def refresh(self) -> None:
+        self._refresh_today()
         items = self.ctx.history.recent(100, self.search.text())
         self.table.setRowCount(len(items))
         for r, it in enumerate(items):
@@ -191,6 +256,8 @@ class HomePage(QWidget):
                 cell = QTableWidgetItem(text)
                 cell.setData(ID_ROLE, it.id)
                 cell.setToolTip(it.final)
+                if c == 2 and has_arabic(text[:40]):
+                    cell.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.table.setItem(r, c, cell)
         empty = not items
         searching = bool(self.search.text())
