@@ -42,8 +42,10 @@ Requirements: **Windows 10 or 11**, **Python 3.11 or 3.12**, a microphone, and a
 ```powershell
 git clone https://github.com/Fable-11/flow-local.git
 cd flow-local
-.\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
+
+The `-ExecutionPolicy Bypass` part lets Windows run this one script without changing your settings. The first start downloads the speech model once (see below); after that nothing goes online.
 
 Not using git? Download the ZIP from GitHub, unpack it, install [Python 3.12](https://www.python.org/downloads/) first, then run `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1` from the unpacked folder (this runs only that script, it does not change your computer's policy).
 
@@ -105,7 +107,7 @@ In the Hub: **Settings > Startup**. Tick *Launch Flow Local when I sign in to Wi
 
 This puts two icons on your desktop:
 
-- **Flow Local** (blue icon with a sound wave): opens the app. If it is already running (for example it started at login and lives in the tray), it just opens the window. The same entry is added to the **Start menu**, so you can find it with Windows search or pin it to the taskbar.
+- **Flow Local** (ember sound-wave bars on a dark tile): opens the app. If it is already running (for example it started at login and lives in the tray), it just opens the window. The same entry is added to the **Start menu**, so you can find it with Windows search or pin it to the taskbar.
 - **Stop Flow Local** (red icon with a stop square): stops the app completely. You can also right-click the tray icon and choose *Quit*, or *Pause dictation* to keep it running but silent.
 
 At login the app starts quietly in the tray with no window.
