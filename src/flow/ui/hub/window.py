@@ -25,7 +25,7 @@ from flow.ui.hub.notes_page import NotesPage
 from flow.ui.hub.settings_page import SettingsPage
 from flow.ui.hub.snippets_page import SnippetsPage
 from flow.ui.hub.style_page import StylePage
-from flow.ui.hub.widgets import StatusDot, caption, set_role
+from flow.ui.hub.widgets import StatusDot, caption, install_wheel_guard, set_role
 from flow.ui.theme import current_palette, notifier
 from flow.ui.tray import make_icon
 
@@ -62,6 +62,7 @@ class HubWindow(QMainWindow):
         super().__init__()
         self.ctx = ctx
         self._delete_on_close = delete_on_close
+        install_wheel_guard()  # the wheel scrolls pages, it never changes a setting
         self.setWindowTitle("Flow Local")
         self.setWindowIcon(make_icon())
         self.setMinimumSize(900, 600)

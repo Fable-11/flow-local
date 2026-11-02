@@ -274,3 +274,48 @@ def test_settings_search_narrows_the_page_and_chips_jump(ctx, qtbot):
     _t, label, _p = page._sections[-1]
     page.jump_to(label)
     assert page.scroll.verticalScrollBar().value() > 0
+
+
+def _wheel(widget, steps: int = -3) -> None:
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+
+    pos = QPointF(widget.rect().center())
+    event = QWheelEvent(
+        pos,
+        QPointF(widget.mapToGlobal(pos.toPoint())),
+        QPoint(0, 0),
+        QPoint(0, 120 * steps),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    QApplication.sendEvent(widget, event)
+
+
+def test_the_mouse_wheel_scrolls_the_page_and_never_changes_a_setting(ctx, qtbot):
+    from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QSlider
+
+    hub = HubWindow(ctx)
+    qtbot.addWidget(hub)
+    hub.resize(900, 650)
+    hub.show_page("Settings")
+    qtbot.wait(50)
+    page = hub.pages["Settings"]
+    bar = page.scroll.verticalScrollBar()
+    controls = (
+        page.findChildren(QComboBox)
+        + page.findChildren(QAbstractSpinBox)
+        + page.findChildren(QSlider)
+    )
+    assert controls
+    before_settings = ctx.settings
+    for control in controls:
+        value = control.currentIndex() if isinstance(control, QComboBox) else control.value()
+        _wheel(control)
+        after = control.currentIndex() if isinstance(control, QComboBox) else control.value()
+        assert after == value, f"{type(control).__name__} changed under the wheel"
+    assert ctx.settings == before_settings
+    assert bar.value() > 0  # the page moved instead

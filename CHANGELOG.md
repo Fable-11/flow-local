@@ -3,6 +3,12 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.9.1 (not released yet)
+
+- Fixed: scrolling a page with the mouse wheel could change a setting when the pointer passed over a
+  dropdown, number box or slider. The wheel now always scrolls the page; settings change only by
+  clicking, typing or the keyboard.
+
 ## 0.9.0 (not released yet)
 
 - Flow Bar: one state now hands over to the next (the trace fades into the spinner, the check mark

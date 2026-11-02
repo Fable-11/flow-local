@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QRectF, QSize, Qt, QVariantAnimation
+from PySide6.QtCore import QEasingCurve, QEvent, QObject, QRectF, QSize, Qt, QVariantAnimation
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QAbstractScrollArea,
+    QAbstractSpinBox,
+    QApplication,
     QCheckBox,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -20,6 +25,39 @@ from PySide6.QtWidgets import (
 
 from flow.ui import icons
 from flow.ui.theme import current_palette, notifier
+
+
+class WheelGuard(QObject):
+    """The mouse wheel scrolls the page; it never changes a dropdown, number box or slider.
+
+    Scrolling a long settings page often passes over these controls, and changing a value by
+    accident is worse than having to click it. Values change by clicking, typing or the keyboard.
+    """
+
+    VALUE_CONTROLS = (QComboBox, QAbstractSpinBox, QSlider)
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
+        if event.type() != QEvent.Type.Wheel or not isinstance(obj, self.VALUE_CONTROLS):
+            return False
+        area = obj.parentWidget()
+        while area is not None and not isinstance(area, QAbstractScrollArea):
+            area = area.parentWidget()
+        if area is not None:
+            QApplication.sendEvent(area.viewport(), event)  # the page scrolls as if over empty space
+        return True  # the control itself never sees the wheel
+
+
+_wheel_guard: WheelGuard | None = None
+
+
+def install_wheel_guard() -> None:
+    """Apply the wheel rule to the whole app (once)."""
+    global _wheel_guard
+    app = QApplication.instance()
+    if app is None or _wheel_guard is not None:
+        return
+    _wheel_guard = WheelGuard(app)
+    app.installEventFilter(_wheel_guard)
 
 
 def repolish(widget: QWidget) -> None:
