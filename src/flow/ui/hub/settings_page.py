@@ -66,7 +66,7 @@ class SettingsPage(QWidget):
         body.setObjectName("Page")
         self.body = QVBoxLayout(body)
         self.body.setContentsMargins(0, 0, 12, 0)
-        self.body.setSpacing(10)
+        self.body.setSpacing(8)
         scroll.setWidget(body)
         outer.addWidget(scroll, 1)
         self._build_shortcuts()
@@ -84,7 +84,7 @@ class SettingsPage(QWidget):
 
     # -- layout helpers -------------------------------------------------------------------------
     def _section(self, title: str) -> Panel:
-        self.body.addSpacing(10)
+        self.body.addSpacing(8)
         self.body.addWidget(section_title(title))
         panel = Panel()
         self.body.addWidget(panel)
@@ -459,7 +459,7 @@ class SettingsPage(QWidget):
         )
         panel.add_row(
             "Learn new words",
-            "Names and terms you say often. Prompts are rare and back off if you ignore them.",
+            "Names and terms you say often. It asks rarely, and less if you ignore it.",
             self.learn_mode,
         )
 

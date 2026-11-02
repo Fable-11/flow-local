@@ -8,6 +8,8 @@ from PySide6.QtCore import QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from flow.ui.theme import LIGHT
+
 
 def make_icon(size: int = 64) -> QIcon:
     pm = QPixmap(size, size)
@@ -15,7 +17,7 @@ def make_icon(size: int = 64) -> QIcon:
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(37, 99, 235))
+    p.setBrush(QColor(LIGHT.accent))
     p.drawRoundedRect(QRectF(2, 2, size - 4, size - 4), size * 0.24, size * 0.24)
     p.setBrush(QColor(255, 255, 255))
     heights = (0.22, 0.42, 0.6, 0.38, 0.2)
@@ -78,7 +80,7 @@ def make_stop_icon(size: int = 64) -> QIcon:
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(220, 38, 38))
+    p.setBrush(QColor(LIGHT.danger))
     p.drawRoundedRect(QRectF(2, 2, size - 4, size - 4), size * 0.24, size * 0.24)
     p.setBrush(QColor(255, 255, 255))
     s = size * 0.34

@@ -150,3 +150,22 @@ def test_a_failing_status_check_can_never_stop_the_worker(monkeypatch):
 
     monkeypatch.setattr(w, "check_ai", boom)
     w._idle_tick()  # must not raise
+
+
+def test_the_ai_row_is_not_drawn_while_it_has_nothing_to_say(qtbot):
+    from flow.store.db import Database
+    from flow.store.dictionary import DictionaryStore
+    from flow.store.settings_repo import SettingsRepo
+    from flow.store.snippets import SnippetStore
+    from flow.ui.hub.context import HubContext
+    from flow.ui.hub.home_page import HomePage
+
+    db = Database()
+    ctx = HubContext(DictionaryStore(db), SnippetStore(db), SettingsRepo(db))
+    page = HomePage(ctx)
+    qtbot.addWidget(page)
+    page.show()
+    ctx.aiStatusChanged.emit("unknown", "", False)
+    assert not any(part.isVisible() for part in page._ai_parts)  # no empty strip under "Ready"
+    ctx.aiStatusChanged.emit("ready", "AI cleanup: ready.", False)
+    assert all(part.isVisible() for part in page._ai_parts)

@@ -1,3 +1,3 @@
 """Flow Local: offline voice dictation for Windows."""
 
-__version__ = "0.7.4"
+__version__ = "0.7.5"

@@ -83,6 +83,8 @@ class HomePage(QWidget):
         ai_lay.addWidget(self.ai_label, 1)
         ai_lay.addWidget(self.ai_button, 0, Qt.AlignmentFlag.AlignVCenter)
         status_panel.add(ai_row)
+        # the row and its divider only exist while there is something to say or a button to show
+        self._ai_parts = [ai_row.parentWidget(), status_panel.layout().itemAt(1).widget()]
         lay.addWidget(status_panel)
 
         # -- shortcuts ---------------------------------------------------------------------
@@ -163,6 +165,8 @@ class HomePage(QWidget):
         self.ai_label.setVisible(bool(text))
         self.ai_button.setVisible(can_start)
         self.ai_button.setEnabled(True)
+        for part in self._ai_parts:
+            part.setVisible(bool(text) or can_start)
 
     def _start_ollama(self) -> None:
         self.ai_button.setEnabled(False)  # one press; the status line updates by itself

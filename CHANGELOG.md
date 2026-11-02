@@ -3,6 +3,13 @@
 Every release has a version number (shown in the app under the logo and by `python -m flow --version`)
 and a git tag, so you can go back to any of them. See "Going back to an earlier version" in the README.
 
+## 0.7.5 (not released yet)
+
+- Polished: spacing, padding and corner radii now follow one 4 px grid and one radius scale across
+  the Hub. The Flow Bar and the tray icon take their colours from the app theme (the purple command
+  colour is gone). The empty strip under the status on Home no longer shows when the AI cleanup has
+  nothing to report. One settings hint was reworded.
+
 ## 0.7.4 (not released yet)
 
 - Fixed: the end of the previous dictation could be eaten by the next one ("software." became

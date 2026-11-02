@@ -73,7 +73,7 @@ class WeekBars(QWidget):
             rect = QRectF(i * slot + slot * 0.22, base - bar_h, slot * 0.56, bar_h)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(pal.accent if is_today and n else pal.border_strong))
-            p.drawRoundedRect(rect, 5, 5)
+            p.drawRoundedRect(rect, 4, 4)
             p.setPen(QColor(pal.text if n else pal.muted))
             if n:
                 p.drawText(

@@ -281,7 +281,7 @@ class KeyCaps(QWidget):
             cap.setObjectName("KeyCap")
             cap.setMinimumHeight(26)
             inner = QHBoxLayout(cap)
-            inner.setContentsMargins(9, 0, 9, 0)
+            inner.setContentsMargins(8, 0, 8, 0)
             text = QLabel(key_label(key))
             text.setAlignment(Qt.AlignmentFlag.AlignCenter)
             inner.addWidget(text)
@@ -346,7 +346,7 @@ class EmptyState(QWidget):
         body.setMaximumWidth(420)
         lay.addWidget(body, 0, Qt.AlignmentFlag.AlignHCenter)
         if action is not None:
-            lay.addSpacing(6)
+            lay.addSpacing(8)
             lay.addWidget(action, 0, Qt.AlignmentFlag.AlignHCenter)
         lay.addStretch(1)
         self.action = action

@@ -13,6 +13,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter
 from PySide6.QtWidgets import QWidget
 
 from flow.ui.screens import PREFIX, find_screen
+from flow.ui.theme import DARK
 
 STATES = (
     "idle", "loading", "recording", "handsfree", "command", "processing", "done", "error",
@@ -39,15 +40,17 @@ _TOOLTIPS = {
 }
 _RETURN_TO_IDLE_MS = {"done": 900, "error": 2200, "suggest": SUGGEST_SECONDS * 1000}
 
-BG = QColor(24, 24, 28, 238)
-BORDER = QColor(255, 255, 255, 70)
+# The bar is always dark, so it takes the dark theme's colours.
+BG = QColor(DARK.surface)
+BG.setAlpha(240)
+BORDER = QColor(255, 255, 255, 64)
 ACCENT = {
-    "recording": QColor(255, 82, 82),
-    "handsfree": QColor(88, 166, 255),
-    "command": QColor(180, 140, 255),
+    "recording": QColor(DARK.danger),
+    "handsfree": QColor(DARK.accent),
+    "command": QColor(DARK.text),
 }
-GREEN = QColor(80, 220, 130)
-RED = QColor(255, 99, 99)
+GREEN = QColor(DARK.success)
+RED = QColor(DARK.danger)
 WHITE = QColor(255, 255, 255, 235)
 N_BARS = 13
 _CLICKABLE = ("recording", "handsfree", "command", "suggest")

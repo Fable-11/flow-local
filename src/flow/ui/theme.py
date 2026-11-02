@@ -27,6 +27,7 @@ SIZE_TITLE = 22
 
 RADIUS_CONTROL = 8
 RADIUS_PANEL = 12
+RADIUS_CHIP = 4  # key caps, list rows, menu rows: inside a padded container
 
 
 @dataclass(frozen=True)
@@ -174,7 +175,7 @@ def stylesheet(p: Palette, assets: dict[str, str] | None = None) -> str:
 * {{ font-family: {f}; font-size: {SIZE_BODY}px; }}
 QWidget {{ color: {p.text}; }}
 QToolTip {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border_strong};
-           border-radius: 6px; padding: 5px 8px; }}
+           border-radius: {RADIUS_CONTROL}px; padding: 4px 8px; }}
 
 QWidget#Content, QStackedWidget#Pages, QWidget#Page {{ background: {p.bg}; }}
 QScrollArea, QScrollArea > QWidget > QWidget {{ background: transparent; border: none; }}
@@ -187,11 +188,11 @@ QLabel[role="strong"] {{ font-weight: 600; }}
 QLabel[role="muted"] {{ color: {p.muted}; }}
 QLabel[role="caption"] {{ color: {p.muted}; font-size: {SIZE_CAPTION}px; }}
 QLabel[role="error"] {{ color: {p.danger}; }}
-QLabel[role="stat"] {{ font-size: 26px; font-weight: 600; }}
+QLabel[role="stat"] {{ font-size: 24px; font-weight: 600; }}
 
 /* ---- sidebar navigation ---- */
 QListWidget#Nav {{ background: transparent; border: none; outline: 0; }}
-QListWidget#Nav::item {{ color: {p.text}; padding: 9px 12px; margin: 1px 0; border-radius: {RADIUS_CONTROL}px; }}
+QListWidget#Nav::item {{ color: {p.text}; padding: 8px 12px; margin: 2px 0; border-radius: {RADIUS_CONTROL}px; }}
 QListWidget#Nav::item:hover {{ background: {p.surface_hover}; }}
 QListWidget#Nav::item:selected {{ background: {p.accent_tint}; color: {p.accent}; font-weight: 600; }}
 
@@ -199,17 +200,17 @@ QListWidget#Nav::item:selected {{ background: {p.accent_tint}; color: {p.accent}
 QFrame#Panel {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {RADIUS_PANEL}px; }}
 QFrame#Divider {{ background: {p.border}; border: none; min-height: 1px; max-height: 1px; }}
 QFrame#VDivider {{ background: {p.border}; border: none; min-width: 1px; max-width: 1px; }}
-QPlainTextEdit#NoteEditor {{ border: none; background: transparent; padding: 14px; border-radius: 0; }}
+QPlainTextEdit#NoteEditor {{ border: none; background: transparent; padding: 16px; border-radius: 0; }}
 QFrame#KeyCap {{ background: {p.bg}; border: 1px solid {p.border_strong}; border-bottom-width: 2px;
-                 border-radius: 6px; }}
+                 border-radius: {RADIUS_CHIP}px; }}
 QFrame#KeyCap QLabel {{ font-size: {SIZE_CAPTION}px; font-weight: 600; background: transparent; }}
 
 /* ---- buttons: secondary by default, primary / ghost / danger via the "variant" property ---- */
 QPushButton {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border_strong};
-              border-radius: {RADIUS_CONTROL}px; padding: 7px 14px; min-height: 18px; }}
+              border-radius: {RADIUS_CONTROL}px; padding: 8px 16px; min-height: 16px; }}
 QPushButton:hover {{ background: {p.surface_hover}; }}
 QPushButton:pressed {{ background: {p.border}; }}
-QPushButton:focus {{ border: 2px solid {p.accent}; padding: 6px 13px; }}
+QPushButton:focus {{ border: 2px solid {p.accent}; padding: 7px 15px; }}
 QPushButton:disabled {{ color: {p.muted}; background: {p.bg}; border-color: {p.border}; }}
 QPushButton[variant="primary"] {{ background: {p.accent}; color: {p.on_accent}; border: 1px solid {p.accent};
                                   font-weight: 600; }}
@@ -223,17 +224,17 @@ QPushButton[variant="danger"] {{ color: {p.danger}; }}
 /* ---- inputs ---- */
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QComboBox {{
     background: {p.surface}; color: {p.text}; border: 1px solid {p.border_strong};
-    border-radius: {RADIUS_CONTROL}px; padding: 7px 10px; selection-background-color: {p.accent};
+    border-radius: {RADIUS_CONTROL}px; padding: 8px 12px; selection-background-color: {p.accent};
     selection-color: {p.on_accent}; }}
-QLineEdit {{ min-height: 18px; }}
+QLineEdit {{ min-height: 16px; }}
 QLineEdit:hover, QPlainTextEdit:hover, QSpinBox:hover, QComboBox:hover {{ border-color: {p.muted}; }}
-QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus {{ border: 2px solid {p.accent}; padding: 6px 9px; }}
+QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus {{ border: 2px solid {p.accent}; padding: 7px 11px; }}
 QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{ color: {p.muted}; background: {p.bg}; }}
-QComboBox {{ padding-right: 28px; min-height: 18px; }}
+QComboBox {{ padding-right: 28px; min-height: 16px; }}
 QComboBox::drop-down {{ border: none; width: 26px; subcontrol-origin: padding; subcontrol-position: center right; }}
 QComboBox::down-arrow {{ image: url({a["chevron"]}); width: 12px; height: 12px; }}
 QComboBox QAbstractItemView {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border_strong};
-    border-radius: 8px; padding: 4px; outline: 0; selection-background-color: {p.accent_tint};
+    border-radius: {RADIUS_CONTROL}px; padding: 4px; outline: 0; selection-background-color: {p.accent_tint};
     selection-color: {p.text}; }}
 QSpinBox::up-button, QSpinBox::down-button {{ width: 0; border: none; }}
 
@@ -258,7 +259,7 @@ QTableCornerButton::section {{ background: transparent; border: none; }}
 
 /* ---- lists (notes, suggestions) ---- */
 QListWidget {{ background: transparent; border: none; outline: 0; }}
-QListWidget::item {{ padding: 8px 10px; border-radius: 6px; }}
+QListWidget::item {{ padding: 8px 12px; border-radius: {RADIUS_CHIP}px; }}
 QListWidget::item:hover {{ background: {p.surface_hover}; }}
 QListWidget::item:selected {{ background: {p.accent_tint}; color: {p.text}; }}
 
@@ -275,14 +276,14 @@ QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::su
 QSlider::groove:horizontal {{ background: {p.border_strong}; height: 4px; border-radius: 2px; }}
 QSlider::sub-page:horizontal {{ background: {p.accent}; border-radius: 2px; }}
 QSlider::handle:horizontal {{ background: {p.knob}; border: 2px solid {p.accent}; width: 14px; height: 14px;
-    margin: -8px 0; border-radius: 9px; }}
+    margin: -8px 0; border-radius: 7px; }}
 
 /* ---- menus (tray) and dialogs ---- */
-QMenu {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border_strong}; border-radius: 8px; padding: 4px; }}
-QMenu::item {{ padding: 7px 18px; border-radius: 5px; }}
+QMenu {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border_strong}; border-radius: {RADIUS_CONTROL}px; padding: 4px; }}
+QMenu::item {{ padding: 8px 16px; border-radius: {RADIUS_CHIP}px; }}
 QMenu::item:selected {{ background: {p.accent_tint}; }}
 QMenu::item:disabled {{ color: {p.muted}; }}
-QMenu::separator {{ height: 1px; background: {p.border}; margin: 4px 6px; }}
+QMenu::separator {{ height: 1px; background: {p.border}; margin: 4px 8px; }}
 QDialog, QMessageBox {{ background: {p.bg}; }}
 """
 
